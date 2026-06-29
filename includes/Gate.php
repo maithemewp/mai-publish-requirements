@@ -168,24 +168,18 @@ class Gate {
 	 * Renders and clears the "kept as Pending" notice for the current user.
 	 */
 	public function maybe_render_notice(): void {
-		$key    = self::NOTICE_TRANSIENT . get_current_user_id();
-		$stored = get_transient( $key );
+		$key = self::NOTICE_TRANSIENT . get_current_user_id();
 
-		// Nothing flagged. Strict false check: a persistent object cache can hand
-		// back '' rather than false, and (array) '' is [''] — which must not be
-		// treated as a pending notice (that's the empty-bullet-on-every-page bug).
-		if ( false === $stored ) {
-			return;
-		}
-
-		// Clear on first read so a stale/odd value can't stick across page loads.
-		delete_transient( $key );
-
-		$fragments = array_filter( array_map( 'trim', (array) $stored ) );
+		// (array) handles both false → [] and a stray '' → [''] (a persistent
+		// object cache can return '' for a missing key); array_filter drops the
+		// empties. No real reasons → nothing to show.
+		$fragments = array_filter( array_map( 'trim', (array) get_transient( $key ) ) );
 
 		if ( ! $fragments ) {
 			return;
 		}
+
+		delete_transient( $key );
 
 		printf(
 			'<div class="notice notice-error is-dismissible"><p><strong>%s</strong> %s</p></div>',
