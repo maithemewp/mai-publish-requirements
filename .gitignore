@@ -1,7 +1,22 @@
 .DS_Store
-.phpunit.result.cache
+.idea/
+.vscode/
 /node_modules/
+/.phpunit.result.cache
 
-# Machine-specific test DB/path config. Run tests after creating your own
-# (copy the structure; point DB_NAME + ABSPATH at a throwaway WP test install).
+# Machine-specific test config (local paths + throwaway DB). Create your own
+# to run tests; see tests/bootstrap.php for the expected location.
 /tests/wp-tests-config.php
+
+# vendor/ is committed (prod-only) so plugin updates apply without a
+# `composer install` on the destination site. Allowlist approach: ignore
+# everything under vendor/, then un-ignore the autoloader, composer's own
+# files, and each explicitly-named production package. Running `composer
+# install` (with dev) drops phpunit et al. under vendor/* — ignored here, so
+# the working tree stays clean and dev tooling never ships.
+/vendor/*
+!/vendor/autoload.php
+!/vendor/composer/
+!/vendor/yahnis-elsts/
+# Auto-regenerates with the current git ref, so tracking it dirties the tree.
+/vendor/composer/installed.php
