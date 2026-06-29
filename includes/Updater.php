@@ -32,22 +32,14 @@ final class Updater {
 			$updater->setAuthentication( MAI_GITHUB_API_TOKEN );
 		}
 
-		// Show an icon on the Updates screen. Prefer mai-engine's shared icon when
-		// present (consistent across Mai sites); otherwise fall back to the icons
-		// bundled with this plugin so it's branded on any site — this plugin has
-		// no mai-engine dependency and can run anywhere.
-		$icons = function_exists( 'mai_get_updater_icons' ) ? (array) mai_get_updater_icons() : [];
-
-		if ( ! $icons ) {
-			$icons = [
-				'1x' => plugins_url( 'assets/img/icon-128x128.png', MAI_PUBLISH_REQUIREMENTS_FILE ),
-				'2x' => plugins_url( 'assets/img/icon-256x256.png', MAI_PUBLISH_REQUIREMENTS_FILE ),
-			];
-		}
-
+		// Show the bundled icon on the Updates screen. Self-contained so it works
+		// on any site — this plugin has no mai-engine dependency.
 		$updater->addResultFilter(
-			static function ( $info ) use ( $icons ) {
-				$info->icons = $icons;
+			static function ( $info ) {
+				$info->icons = [
+					'1x' => plugins_url( 'assets/img/icon-128x128.png', MAI_PUBLISH_REQUIREMENTS_FILE ),
+					'2x' => plugins_url( 'assets/img/icon-256x256.png', MAI_PUBLISH_REQUIREMENTS_FILE ),
+				];
 				return $info;
 			}
 		);
