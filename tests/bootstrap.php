@@ -4,7 +4,13 @@
  * config, then loads the plugin itself on muplugins_loaded.
  */
 
-define( 'WP_TESTS_CONFIG_FILE_PATH', __DIR__ . '/wp-tests-config.php' );
+// Use the plugin's local config when present (developer machines). When it's
+// absent — CI — fall back to the config that install-wp-tests.sh writes into
+// WP_TESTS_DIR, via the test suite's default discovery.
+$_local_config = __DIR__ . '/wp-tests-config.php';
+if ( file_exists( $_local_config ) ) {
+	define( 'WP_TESTS_CONFIG_FILE_PATH', $_local_config );
+}
 
 $_tests_dir = getenv( 'WP_TESTS_DIR' ) ?: '/tmp/wordpress-tests-lib';
 

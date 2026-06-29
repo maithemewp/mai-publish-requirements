@@ -19,15 +19,8 @@ declare( strict_types=1 );
 
 defined( 'ABSPATH' ) || exit;
 
-// Prevent double-loading when installed standalone AND bundled via Composer.
-if ( defined( 'MAI_PUBLISH_REQUIREMENTS_VERSION' ) ) {
-	return;
-}
-
 define( 'MAI_PUBLISH_REQUIREMENTS_VERSION', '0.1.0' );
 define( 'MAI_PUBLISH_REQUIREMENTS_FILE', __FILE__ );
-define( 'MAI_PUBLISH_REQUIREMENTS_DIR', plugin_dir_path( __FILE__ ) );
-define( 'MAI_PUBLISH_REQUIREMENTS_URL', plugin_dir_url( __FILE__ ) );
 
 require_once __DIR__ . '/vendor/autoload.php';
 
