@@ -22,11 +22,6 @@ final class Updater {
 			return;
 		}
 
-		// Skip when loaded as a Composer dependency inside another plugin.
-		if ( str_contains( MAI_PUBLISH_REQUIREMENTS_DIR, '/vendor/' ) ) {
-			return;
-		}
-
 		$updater = PucFactory::buildUpdateChecker(
 			'https://github.com/maithemewp/mai-publish-requirements/',
 			MAI_PUBLISH_REQUIREMENTS_FILE,
