@@ -31,5 +31,16 @@ final class Updater {
 		if ( defined( 'MAI_GITHUB_API_TOKEN' ) ) {
 			$updater->setAuthentication( MAI_GITHUB_API_TOKEN );
 		}
+
+		// Show the shared Mai icon on the Updates screen. Provided by mai-engine;
+		// a graceful no-op (no icon) when it isn't active.
+		if ( function_exists( 'mai_get_updater_icons' ) && $icons = mai_get_updater_icons() ) {
+			$updater->addResultFilter(
+				static function ( $info ) use ( $icons ) {
+					$info->icons = $icons;
+					return $info;
+				}
+			);
+		}
 	}
 }
