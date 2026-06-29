@@ -156,35 +156,41 @@ class Gate {
 	 */
 	private function flag_notice( array $fragments ): void {
 		$key      = self::NOTICE_TRANSIENT . get_current_user_id();
-		$messages = (array) get_transient( $key );
+		$stored   = get_transient( $key );
+		$existing = is_array( $stored ) ? $stored : [];
 
-		$messages[] = self::format_message( $fragments );
+		$fragments = array_filter( array_map( 'trim', array_merge( $existing, $fragments ) ) );
 
-		set_transient( $key, array_values( array_unique( $messages ) ), MINUTE_IN_SECONDS );
+		set_transient( $key, array_values( array_unique( $fragments ) ), MINUTE_IN_SECONDS );
 	}
 
 	/**
 	 * Renders and clears the "kept as Pending" notice for the current user.
 	 */
 	public function maybe_render_notice(): void {
-		$key      = self::NOTICE_TRANSIENT . get_current_user_id();
-		$messages = (array) get_transient( $key );
+		$key    = self::NOTICE_TRANSIENT . get_current_user_id();
+		$stored = get_transient( $key );
 
-		if ( ! $messages ) {
+		// Nothing flagged. Strict false check: a persistent object cache can hand
+		// back '' rather than false, and (array) '' is [''] — which must not be
+		// treated as a pending notice (that's the empty-bullet-on-every-page bug).
+		if ( false === $stored ) {
 			return;
 		}
 
+		// Clear on first read so a stale/odd value can't stick across page loads.
 		delete_transient( $key );
 
-		$items = '';
-		foreach ( $messages as $message ) {
-			$items .= sprintf( '<li>%s</li>', esc_html( (string) $message ) );
+		$fragments = array_filter( array_map( 'trim', (array) $stored ) );
+
+		if ( ! $fragments ) {
+			return;
 		}
 
 		printf(
-			'<div class="notice notice-error is-dismissible"><p>%s</p><ul style="list-style:disc;margin-left:1.5em;">%s</ul></div>',
-			esc_html__( 'A post was kept as Pending because it does not meet publish requirements:', 'mai-publish-requirements' ),
-			$items // phpcs:ignore WordPress.Security.EscapingOutput.OutputNotEscaped -- each <li> is escaped above.
+			'<div class="notice notice-error is-dismissible"><p><strong>%s</strong> %s</p></div>',
+			esc_html__( 'A post was kept as Pending.', 'mai-publish-requirements' ),
+			esc_html( self::format_message( $fragments ) )
 		);
 	}
 }

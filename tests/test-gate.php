@@ -129,6 +129,36 @@ class Test_Gate extends WP_UnitTestCase {
 		$this->assertSame( 'publish', get_post_status( $post_id ) );
 	}
 
+	// --- admin notice rendering --------------------------------------------
+
+	private function notice_output(): string {
+		ob_start();
+		( new Gate() )->maybe_render_notice();
+		return (string) ob_get_clean();
+	}
+
+	public function test_notice_renders_for_a_real_reason(): void {
+		set_transient( 'mai_publish_requirements_blocked_' . get_current_user_id(), [ 'set a featured image' ], MINUTE_IN_SECONDS );
+
+		$out = $this->notice_output();
+
+		$this->assertStringContainsString( 'featured image', $out );
+	}
+
+	public function test_notice_is_silent_for_an_empty_string_transient(): void {
+		// A persistent object cache can hand back '' instead of false; (array) ''
+		// is [''], which must not render an empty-bullet notice on every page.
+		set_transient( 'mai_publish_requirements_blocked_' . get_current_user_id(), '', MINUTE_IN_SECONDS );
+
+		$this->assertSame( '', $this->notice_output() );
+	}
+
+	public function test_notice_never_emits_an_empty_list_item(): void {
+		set_transient( 'mai_publish_requirements_blocked_' . get_current_user_id(), [ '', 'set a featured image', '' ], MINUTE_IN_SECONDS );
+
+		$this->assertStringNotContainsString( '<li></li>', $this->notice_output() );
+	}
+
 	public function test_non_rest_guard_bails_during_a_rest_request(): void {
 		$gate = new class() extends Gate {
 			protected function is_rest_request(): bool {
