@@ -1,0 +1,7 @@
+.DS_Store
+.phpunit.result.cache
+/node_modules/
+
+# Machine-specific test DB/path config. Run tests after creating your own
+# (copy the structure; point DB_NAME + ABSPATH at a throwaway WP test install).
+/tests/wp-tests-config.php

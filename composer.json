@@ -1,0 +1,27 @@
+{
+	"name": "maithemewp/mai-publish-requirements",
+	"description": "Require a featured image (and other per-post-type rules) before a post can be published.",
+	"license": "GPL-2.0-or-later",
+	"authors": [
+		{
+			"name": "BizBudding",
+			"homepage": "https://bizbudding.com"
+		}
+	],
+	"require": {
+		"php": ">=8.2",
+		"yahnis-elsts/plugin-update-checker": "^5"
+	},
+	"require-dev": {
+		"phpunit/phpunit": "^9",
+		"yoast/phpunit-polyfills": "^2.0"
+	},
+	"autoload": {
+		"psr-4": {
+			"Mai\\PublishRequirements\\": "includes/"
+		}
+	},
+	"scripts": {
+		"test": "phpunit"
+	}
+}
