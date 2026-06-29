@@ -32,15 +32,24 @@ final class Updater {
 			$updater->setAuthentication( MAI_GITHUB_API_TOKEN );
 		}
 
-		// Show the shared Mai icon on the Updates screen. Provided by mai-engine;
-		// a graceful no-op (no icon) when it isn't active.
-		if ( function_exists( 'mai_get_updater_icons' ) && $icons = mai_get_updater_icons() ) {
-			$updater->addResultFilter(
-				static function ( $info ) use ( $icons ) {
-					$info->icons = $icons;
-					return $info;
-				}
-			);
+		// Show an icon on the Updates screen. Prefer mai-engine's shared icon when
+		// present (consistent across Mai sites); otherwise fall back to the icons
+		// bundled with this plugin so it's branded on any site — this plugin has
+		// no mai-engine dependency and can run anywhere.
+		$icons = function_exists( 'mai_get_updater_icons' ) ? (array) mai_get_updater_icons() : [];
+
+		if ( ! $icons ) {
+			$icons = [
+				'1x' => plugins_url( 'assets/img/icon-128x128.png', MAI_PUBLISH_REQUIREMENTS_FILE ),
+				'2x' => plugins_url( 'assets/img/icon-256x256.png', MAI_PUBLISH_REQUIREMENTS_FILE ),
+			];
 		}
+
+		$updater->addResultFilter(
+			static function ( $info ) use ( $icons ) {
+				$info->icons = $icons;
+				return $info;
+			}
+		);
 	}
 }
