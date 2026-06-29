@@ -1,0 +1,126 @@
+name: CI
+
+# Runs on every branch push and PR. Branches are installed directly from
+# GitHub, so each one must be deployable on its own — not just tagged releases.
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3']
+    services:
+      mysql:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install dependencies (with dev)
+        run: composer install --prefer-dist --no-progress
+
+      - name: Install the WordPress test suite
+        run: |
+          sudo apt-get update && sudo apt-get install -y subversion
+          bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 latest
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit
+
+  deployable:
+    name: Deployable from branch (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+    services:
+      mysql:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v2, wp-cli
+          coverage: none
+
+      - name: Lint every shipped PHP file
+        run: |
+          find . -path ./vendor -prune -o -name '*.php' -print0 \
+            | xargs -0 -n1 -P4 php -l > /dev/null
+
+      - name: Set up a real WordPress site
+        run: |
+          wp core download --path="$HOME/wp" --version=latest
+          wp config create --path="$HOME/wp" --dbname=wp_site --dbuser=root --dbpass=root --dbhost=127.0.0.1
+          wp db create --path="$HOME/wp"
+          wp core install --path="$HOME/wp" --url=http://localhost --title=CI \
+            --admin_user=admin --admin_password=admin --admin_email=ci@example.com --skip-email
+
+      # Install the committed tree exactly as a GitHub branch-zip would deliver
+      # it — NO composer step — so this proves the branch is deployable as-is.
+      - name: Install this branch as a plugin (committed tree)
+        run: ln -s "$GITHUB_WORKSPACE" "$HOME/wp/wp-content/plugins/mai-publish-requirements"
+
+      - name: Activate with no dev deps — must not fatal
+        run: wp plugin activate mai-publish-requirements --path="$HOME/wp"
+
+      - name: Smoke — publishing without a featured image is kept Pending
+        run: |
+          STATUS=$(wp eval --path="$HOME/wp" '$id = wp_insert_post(["post_title" => "ci", "post_type" => "post", "post_status" => "publish"]); echo get_post_status($id);')
+          echo "status=$STATUS"
+          [ "$STATUS" = "pending" ] || { echo "::error::Gate did not engage on a production install"; exit 1; }
+
+      # Guard: a production install must not add or remove any tracked vendor
+      # file. Added/deleted files mean the committed tree is missing a prod
+      # package or is shipping a dev one — either way it could blow up a site.
+      # (Content-only churn from composer-version autoload differences is
+      # ignored; only A/D matters.)
+      - name: No dev dependencies leak into the committed tree
+        run: |
+          composer install --no-dev --optimize-autoloader --no-progress
+          LEAKED=$(git diff --name-status -- vendor | grep -E '^[AD]' || true)
+          if [ -n "$LEAKED" ]; then
+            echo "::error::Committed vendor/ is not a clean --no-dev install. Run 'composer install --no-dev --optimize-autoloader' and commit vendor/."
+            echo "$LEAKED"
+            exit 1
+          fi
