@@ -15,7 +15,7 @@
     "require-dev": {
         "phpunit/phpunit": "^9",
         "yoast/phpunit-polyfills": "^2.0",
-        "maithemewp/deployable-guard": "^1"
+        "bizbudding/deployable-guard": "^1"
     },
     "autoload": {
         "psr-4": {
@@ -42,7 +42,7 @@
     "repositories": [
         {
             "type": "vcs",
-            "url": "https://github.com/maithemewp/deployable-guard"
+            "url": "https://github.com/bizbudding/deployable-guard"
         }
     ],
     "scripts-no-dev": {

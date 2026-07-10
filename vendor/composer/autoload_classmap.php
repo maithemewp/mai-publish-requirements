@@ -7,13 +7,4 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
-    'Mai\\PublishRequirements\\AdminSettings' => $baseDir . '/includes/AdminSettings.php',
-    'Mai\\PublishRequirements\\Context' => $baseDir . '/includes/Context.php',
-    'Mai\\PublishRequirements\\Gate' => $baseDir . '/includes/Gate.php',
-    'Mai\\PublishRequirements\\Plugin' => $baseDir . '/includes/Plugin.php',
-    'Mai\\PublishRequirements\\Rules' => $baseDir . '/includes/Rules.php',
-    'Mai\\PublishRequirements\\Rules\\FeaturedImage' => $baseDir . '/includes/Rules/FeaturedImage.php',
-    'Mai\\PublishRequirements\\Rules\\RuleInterface' => $baseDir . '/includes/Rules/RuleInterface.php',
-    'Mai\\PublishRequirements\\Settings' => $baseDir . '/includes/Settings.php',
-    'Mai\\PublishRequirements\\Updater' => $baseDir . '/includes/Updater.php',
 );
