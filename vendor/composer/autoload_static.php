@@ -26,6 +26,15 @@ class ComposerStaticInitfeece85797c21a345016c80931a6e5b4
 
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
+        'Mai\\PublishRequirements\\AdminSettings' => __DIR__ . '/../..' . '/includes/AdminSettings.php',
+        'Mai\\PublishRequirements\\Context' => __DIR__ . '/../..' . '/includes/Context.php',
+        'Mai\\PublishRequirements\\Gate' => __DIR__ . '/../..' . '/includes/Gate.php',
+        'Mai\\PublishRequirements\\Plugin' => __DIR__ . '/../..' . '/includes/Plugin.php',
+        'Mai\\PublishRequirements\\Rules' => __DIR__ . '/../..' . '/includes/Rules.php',
+        'Mai\\PublishRequirements\\Rules\\FeaturedImage' => __DIR__ . '/../..' . '/includes/Rules/FeaturedImage.php',
+        'Mai\\PublishRequirements\\Rules\\RuleInterface' => __DIR__ . '/../..' . '/includes/Rules/RuleInterface.php',
+        'Mai\\PublishRequirements\\Settings' => __DIR__ . '/../..' . '/includes/Settings.php',
+        'Mai\\PublishRequirements\\Updater' => __DIR__ . '/../..' . '/includes/Updater.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
