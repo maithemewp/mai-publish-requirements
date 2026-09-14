@@ -214,6 +214,17 @@ class Test_Gate extends WP_UnitTestCase {
 		$this->assertSame( 'publish', $data['post_status'] );
 	}
 
+	/**
+	 * A warning and a block can come from the same save, and on that save the
+	 * post was demoted. The warning copy must not claim it went live.
+	 */
+	public function test_warning_copy_never_claims_the_post_published(): void {
+		$message = Gate::format_message( [ 'trim this down' ], Severity::Warn );
+
+		$this->assertStringNotContainsString( 'was published', $message );
+		$this->assertStringContainsString( 'trim this down', $message );
+	}
+
 	public function test_a_warning_notice_renders_separately_from_a_block(): void {
 		set_transient( 'mai_publish_requirements_warn_' . get_current_user_id(), [ 'trim this down' ], MINUTE_IN_SECONDS );
 

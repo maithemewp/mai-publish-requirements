@@ -228,9 +228,13 @@ class Gate {
 				__( 'Before publishing this post, please %s.', 'mai-publish-requirements' ),
 				$list
 			)
+			// Deliberately does NOT claim the post was published. A warning and a
+			// block can both come from one save, and on that save the post was
+			// demoted to Pending, so "this post was published, but..." would be
+			// telling the author the opposite of what happened.
 			: sprintf(
 				/* translators: %s: list of publish warnings. */
-				__( 'This post was published, but you may want to %s.', 'mai-publish-requirements' ),
+				__( 'You may also want to %s.', 'mai-publish-requirements' ),
 				$list
 			);
 	}
