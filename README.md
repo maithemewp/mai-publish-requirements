@@ -53,10 +53,11 @@ $rules[] = new MinimumLength( words: 30 );
 // Severity changed, everything else default.
 $rules[] = new ExcerptRequired( Severity::Block );
 
-// Both, positionally.
-$rules[] = new TitleLength( Severity::Warn, 70 );
+// Severity positionally, the rest named. A bare 70 here would be typed but
+// unreadable: nothing at the call site says what it counts.
+$rules[] = new TitleLength( Severity::Warn, characters: 70 );
 
-// Or name the one you mean and skip the rest.
+// Or name only the one you mean and leave the rest at their defaults.
 $rules[] = new TermCount( taxonomy: 'series', min: 2 );
 ```
 
