@@ -76,6 +76,17 @@ final class Context {
 	private const LIVE_STATUSES = [ 'publish', 'future' ];
 
 	/**
+	 * True when this save leaves the post publicly live, however it got there.
+	 *
+	 * Wider than is_publish_transition() on purpose: an edit to an already-live
+	 * post is exactly when a warning earns its keep, because that is how a post
+	 * grows to 500 KB or loses its excerpt long after it was published.
+	 */
+	public function is_live_save(): bool {
+		return in_array( $this->new_status, self::LIVE_STATUSES, true );
+	}
+
+	/**
 	 * True when the post is moving into a live status from a non-live one.
 	 */
 	public function is_publish_transition(): bool {

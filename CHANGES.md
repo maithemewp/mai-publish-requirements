@@ -14,7 +14,9 @@
 
 **Severity is always the first constructor argument**, so the positional order is the same for every rule. Named arguments are the clearer way to pass the rest.
 
-**New:** an abstract `Rule` base class, and `Context::content()`, `title()`, `excerpt()` and `term_slugs()`.
+**Warnings run on updates, not just the publish transition.** A post grows past a size limit or loses its excerpt long after it first went live, and the transition has been and gone by then. Blocks still only apply on the transition, so an update can never unpublish a live post.
+
+**New:** an abstract `Rule` base class, `Context::is_live_save()`, and `Context::content()`, `title()`, `excerpt()` and `term_slugs()`.
 
 ## 0.1.0 (6/29/26)
 * Added: Initial release — require a featured image before a post can be published, enforced across the block editor (inline error), Quick Edit, bulk edit, and the classic editor (kept as Pending). Per-post-type rule seam with a settings page for choosing which post types are gated.

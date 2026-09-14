@@ -11,7 +11,11 @@ A rule returns one of two severities.
 - **Block** refuses the publish. In the block editor the save is aborted with an inline error. On Quick Edit, bulk edit and the classic editor, which cannot surface one, the post is kept as **Pending** and the reason appears as an admin notice.
 - **Warn** lets the post through and says something. In the block editor it arrives as a warning notice after the save. Elsewhere it is an admin notice.
 
-Blocks run only on the **publish transition**, a post moving into `publish` or `future` from a non-live status. Editing a post that is already live is never blocked or unpublished.
+**Blocks run only on the publish transition**, a post moving into `publish` or `future` from a non-live status. Editing a post that is already live is never blocked or unpublished, because refusing an update would take down a post over a rule it may have been failing for months.
+
+**Warnings run on any save that leaves the post live**, including updates. That is when they earn their keep: a post grows past a size limit or loses its excerpt long after it was first published, and the publish transition has been and gone.
+
+Neither runs on a draft.
 
 ## Registering rules
 
@@ -175,6 +179,7 @@ The message is an imperative **fragment**, not a sentence. Several are joined to
 |---|---|
 | `post_id`, `post_type`, `new_status`, `old_status` | the save itself |
 | `is_publish_transition()` | is this post going live now |
+| `is_live_save()` | will this post be live after this save |
 | `featured_image_id()` | the image being set, or the stored one |
 | `content()` | the body being saved, or the stored one |
 | `title()`, `excerpt()` | the same, for those fields |

@@ -98,12 +98,18 @@ class Gate {
 
 		$context = Context::from_rest( $prepared, $request );
 
-		if ( ! $context->is_publish_transition() ) {
+		// Any save that leaves the post live is examined, not only the moment it
+		// first goes live. Blocks still apply on the transition alone, below.
+		if ( ! $context->is_live_save() ) {
 			return $prepared;
 		}
 
 		$results = $this->evaluate( $context );
-		$blocks  = self::messages( $results, Severity::Block );
+
+		// Refusing an update would unpublish a live post over a rule it has been
+		// failing for months, so only the transition can be blocked. A warning on
+		// an update is the point of the wider check.
+		$blocks = $context->is_publish_transition() ? self::messages( $results, Severity::Block ) : [];
 
 		if ( $blocks ) {
 			return new \WP_Error(
@@ -146,13 +152,15 @@ class Gate {
 
 		$context = Context::from_save( $data, $postarr );
 
-		if ( ! $context->is_publish_transition() ) {
+		if ( ! $context->is_live_save() ) {
 			return $data;
 		}
 
 		$results = $this->evaluate( $context );
-		$blocks  = self::messages( $results, Severity::Block );
-		$warns   = self::messages( $results, Severity::Warn );
+
+		// Same rule as the REST path: only a transition can be demoted.
+		$blocks = $context->is_publish_transition() ? self::messages( $results, Severity::Block ) : [];
+		$warns  = self::messages( $results, Severity::Warn );
 
 		if ( $blocks ) {
 			$data['post_status'] = 'pending';
@@ -281,10 +289,13 @@ class Gate {
 			printf(
 				'<div class="notice %1$s is-dismissible"><p><strong>%2$s</strong> %3$s</p></div>',
 				$is_block ? 'notice-error' : 'notice-warning',
+				// The warning heading does not claim publication either, for the
+				// same reason the body does not: the two notices render
+				// independently, and a save that raised both ended in Pending.
 				esc_html(
 					$is_block
 						? __( 'A post was kept as Pending.', 'mai-publish-requirements' )
-						: __( 'A post was published with warnings.', 'mai-publish-requirements' )
+						: __( 'Publish warnings.', 'mai-publish-requirements' )
 				),
 				esc_html( self::format_message( $fragments, $severity ) )
 			);

@@ -233,6 +233,8 @@ class Test_Gate extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'trim this down', $out );
 		$this->assertStringContainsString( 'notice-warning', $out );
 		$this->assertStringNotContainsString( 'notice-error', $out );
+		// Heading included: a save that also blocked ended in Pending.
+		$this->assertStringNotContainsString( 'was published', $out );
 	}
 
 	public function test_a_block_notice_is_still_an_error(): void {
@@ -281,6 +283,54 @@ class Test_Gate extends WP_UnitTestCase {
 				return new \Mai\PublishRequirements\Result( Severity::Warn, 'trim this down' );
 			}
 		};
+	}
+
+	// --- updates to a live post ----------------------------------------------
+
+	/**
+	 * An edit to an already-live post is exactly when a warning earns its keep:
+	 * it is how a post grows to 500 KB long after it was published.
+	 */
+	public function test_an_update_to_a_live_post_still_warns(): void {
+		$this->register_rule( $this->warning_rule() );
+
+		// Genuinely live: a bare publish-status factory post would be demoted by
+		// the gate on creation and so would not be a live post at all.
+		$post_id = $this->published_post_with_image();
+
+		( new Test_Gate_Non_Rest_Double() )->guard_non_rest(
+			[ 'post_type' => 'post', 'post_status' => 'publish' ],
+			[ 'ID' => $post_id ]
+		);
+
+		$this->assertNotEmpty( get_transient( 'mai_publish_requirements_warn_' . get_current_user_id() ) );
+	}
+
+	/**
+	 * But it is never demoted. Refusing an update would unpublish a live post
+	 * over a rule it has been failing for months.
+	 */
+	public function test_an_update_to_a_live_post_is_never_demoted(): void {
+		$post_id = $this->published_post_with_image();
+
+		$data = ( new Test_Gate_Non_Rest_Double() )->guard_non_rest(
+			[ 'post_type' => 'post', 'post_status' => 'publish' ],
+			[ 'ID' => $post_id ]
+		);
+
+		$this->assertSame( 'publish', $data['post_status'] );
+		$this->assertEmpty( get_transient( 'mai_publish_requirements_block_' . get_current_user_id() ) );
+	}
+
+	public function test_a_draft_save_is_examined_at_all(): void {
+		$this->register_rule( $this->warning_rule() );
+
+		( new Test_Gate_Non_Rest_Double() )->guard_non_rest(
+			[ 'post_type' => 'post', 'post_status' => 'draft' ],
+			[ 'ID' => 0 ]
+		);
+
+		$this->assertEmpty( get_transient( 'mai_publish_requirements_warn_' . get_current_user_id() ) );
 	}
 }
 
