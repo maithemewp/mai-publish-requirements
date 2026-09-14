@@ -46,6 +46,7 @@ class Gate {
 		add_action( 'rest_api_init', [ $this, 'register_rest_field' ] );
 		add_filter( 'wp_insert_post_data', [ $this, 'guard_non_rest' ], 10, 2 );
 		add_action( 'admin_notices', [ $this, 'maybe_render_notice' ] );
+		add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_script' ] );
 	}
 
 	/**
@@ -284,5 +285,29 @@ class Gate {
 				esc_html( self::format_message( $fragments, $severity ) )
 			);
 		}
+	}
+
+	/**
+	 * Loads the script that turns a warning on the REST response into a notice.
+	 *
+	 * Only where a rule actually applies, so an editor for an ungated post type
+	 * downloads nothing. wp-data and wp-notices are the two stores it touches;
+	 * both are core and already present in the editor, so the dependency is
+	 * declared rather than bundled.
+	 */
+	public function enqueue_editor_script(): void {
+		$post_type = get_post_type();
+
+		if ( ! $post_type || ! in_array( $post_type, Rules::gated_post_types(), true ) ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'mai-publish-requirements-editor',
+			plugins_url( 'assets/js/editor-warnings.js', MAI_PUBLISH_REQUIREMENTS_FILE ),
+			[ 'wp-data' ],
+			MAI_PUBLISH_REQUIREMENTS_VERSION,
+			true
+		);
 	}
 }
