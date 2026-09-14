@@ -21,12 +21,12 @@ defined( 'ABSPATH' ) || exit;
  * Counts words in the rendered text, with tags and block comments stripped, so
  * a post built entirely from blocks is not credited for its markup.
  */
-class MinimumLength extends Rule {
+class ContentLength extends Rule {
 
 	/**
 	 * Severity first, as every rule here takes it, so the positional order is
 	 * guessable across all of them. The interesting argument is $words, which is
-	 * what named arguments are for: `new MinimumLength( words: 30 )`.
+	 * what named arguments are for: `new ContentLength( words: 30 )`.
 	 */
 	public function __construct(
 		protected readonly Severity $severity = Severity::Warn,
@@ -34,7 +34,7 @@ class MinimumLength extends Rule {
 	) {}
 
 	public function id(): string {
-		return 'minimum_length';
+		return 'content_length';
 	}
 
 	public function check( Context $context ): ?Result {

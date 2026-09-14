@@ -8,7 +8,7 @@
 
 **The settings screen and its option are gone.** Rules are configured by constructor arguments where they are registered. Post types stay filterable.
 
-**New rules shipped as building blocks:** `TermCount`, `MinimumLength`, `ExcerptRequired`, `TitleLength`, `ImageAltText`. None are active until registered, and most warn rather than block.
+**New rules shipped as building blocks:** `TermCount`, `ContentLength`, `Excerpt`, `TitleLength`, `ImageAltText`. Named for their subject, plus a dimension when something is measured; neither the bound nor the severity appears in a name. None are active until registered, and most warn rather than block.
 
 **`TermCount` replaces the separate category rules.** Requiring a category, allowing only one, and capping tags are the same check with different numbers, so it takes `$min` and `$max` and works on any taxonomy. Its id carries the taxonomy (`term_count_category`), so several registered instances stay separately addressable.
 

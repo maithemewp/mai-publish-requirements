@@ -4,17 +4,17 @@ declare( strict_types=1 );
 
 use Mai\PublishRequirements\Context;
 use Mai\PublishRequirements\Result;
-use Mai\PublishRequirements\Rules\ExcerptRequired;
+use Mai\PublishRequirements\Rules\Excerpt;
 use Mai\PublishRequirements\Rules\ImageAltText;
-use Mai\PublishRequirements\Rules\MinimumLength;
+use Mai\PublishRequirements\Rules\ContentLength;
 use Mai\PublishRequirements\Rules\TermCount;
 use Mai\PublishRequirements\Rules\TitleLength;
 use Mai\PublishRequirements\Severity;
 
 /**
  * @covers \Mai\PublishRequirements\Rules\TermCount
- * @covers \Mai\PublishRequirements\Rules\MinimumLength
- * @covers \Mai\PublishRequirements\Rules\ExcerptRequired
+ * @covers \Mai\PublishRequirements\Rules\ContentLength
+ * @covers \Mai\PublishRequirements\Rules\Excerpt
  * @covers \Mai\PublishRequirements\Rules\TitleLength
  * @covers \Mai\PublishRequirements\Rules\ImageAltText
  */
@@ -120,10 +120,10 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 		$this->assertSame( Severity::Warn, $result->severity );
 	}
 
-	// --- MinimumLength --------------------------------------------------------
+	// --- ContentLength --------------------------------------------------------
 
 	public function test_minimum_length_warns_when_short(): void {
-		$result = ( new MinimumLength( words: 50 ) )->check( $this->rest_context( [], 'three words only' ) );
+		$result = ( new ContentLength( words: 50 ) )->check( $this->rest_context( [], 'three words only' ) );
 
 		$this->assertInstanceOf( Result::class, $result );
 		$this->assertSame( Severity::Warn, $result->severity );
@@ -133,7 +133,7 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 	public function test_minimum_length_passes_when_long_enough(): void {
 		$content = implode( ' ', array_fill( 0, 60, 'word' ) );
 
-		$this->assertNull( ( new MinimumLength( words: 50 ) )->check( $this->rest_context( [], $content ) ) );
+		$this->assertNull( ( new ContentLength( words: 50 ) )->check( $this->rest_context( [], $content ) ) );
 	}
 
 	/**
@@ -142,21 +142,21 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 	public function test_minimum_length_does_not_count_block_markup(): void {
 		$content = '<!-- wp:paragraph --><p>one two three</p><!-- /wp:paragraph -->';
 
-		$result = ( new MinimumLength( words: 50 ) )->check( $this->rest_context( [], $content ) );
+		$result = ( new ContentLength( words: 50 ) )->check( $this->rest_context( [], $content ) );
 
 		$this->assertStringContainsString( '3 words', $result->message );
 	}
 
 	public function test_minimum_length_can_block_when_asked(): void {
-		$result = ( new MinimumLength( Severity::Block, 50 ) )->check( $this->rest_context( [], 'short' ) );
+		$result = ( new ContentLength( Severity::Block, 50 ) )->check( $this->rest_context( [], 'short' ) );
 
 		$this->assertSame( Severity::Block, $result->severity );
 	}
 
-	// --- ExcerptRequired ------------------------------------------------------
+	// --- Excerpt ------------------------------------------------------
 
 	public function test_excerpt_required_warns_when_missing(): void {
-		$result = ( new ExcerptRequired() )->check( $this->rest_context( [], 'body' ) );
+		$result = ( new Excerpt() )->check( $this->rest_context( [], 'body' ) );
 
 		$this->assertInstanceOf( Result::class, $result );
 		$this->assertSame( Severity::Warn, $result->severity );
@@ -165,13 +165,13 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 	public function test_excerpt_required_passes_when_written(): void {
 		$context = $this->rest_context( [], 'body', [ 'post_excerpt' => 'A short summary.' ] );
 
-		$this->assertNull( ( new ExcerptRequired() )->check( $context ) );
+		$this->assertNull( ( new Excerpt() )->check( $context ) );
 	}
 
 	public function test_excerpt_of_only_whitespace_does_not_count(): void {
 		$context = $this->rest_context( [], 'body', [ 'post_excerpt' => "  \n " ] );
 
-		$this->assertInstanceOf( Result::class, ( new ExcerptRequired() )->check( $context ) );
+		$this->assertInstanceOf( Result::class, ( new Excerpt() )->check( $context ) );
 	}
 
 	// --- TitleLength ----------------------------------------------------------
