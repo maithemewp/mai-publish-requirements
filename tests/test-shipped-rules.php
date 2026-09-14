@@ -4,17 +4,15 @@ declare( strict_types=1 );
 
 use Mai\PublishRequirements\Context;
 use Mai\PublishRequirements\Result;
-use Mai\PublishRequirements\Rules\CategoryRequired;
 use Mai\PublishRequirements\Rules\ExcerptRequired;
 use Mai\PublishRequirements\Rules\ImageAltText;
 use Mai\PublishRequirements\Rules\MinimumLength;
-use Mai\PublishRequirements\Rules\SingleCategory;
+use Mai\PublishRequirements\Rules\TermCount;
 use Mai\PublishRequirements\Rules\TitleLength;
 use Mai\PublishRequirements\Severity;
 
 /**
- * @covers \Mai\PublishRequirements\Rules\CategoryRequired
- * @covers \Mai\PublishRequirements\Rules\SingleCategory
+ * @covers \Mai\PublishRequirements\Rules\TermCount
  * @covers \Mai\PublishRequirements\Rules\MinimumLength
  * @covers \Mai\PublishRequirements\Rules\ExcerptRequired
  * @covers \Mai\PublishRequirements\Rules\TitleLength
@@ -38,64 +36,88 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 		return Context::from_rest( $prepared, $request );
 	}
 
-	// --- CategoryRequired -----------------------------------------------------
+	// --- TermCount ------------------------------------------------------------
 
-	public function test_category_required_fails_with_none(): void {
-		$result = ( new CategoryRequired() )->check( $this->rest_context() );
+	public function test_term_count_requires_at_least_one(): void {
+		$result = ( new TermCount( min: 1 ) )->check( $this->rest_context() );
 
 		$this->assertInstanceOf( Result::class, $result );
 		$this->assertSame( Severity::Block, $result->severity );
+		$this->assertStringContainsString( 'choose a', $result->message );
 	}
 
-	public function test_category_required_passes_with_a_real_one(): void {
+	public function test_term_count_passes_with_a_real_term(): void {
 		$term = self::factory()->category->create( [ 'slug' => 'politics' ] );
 
-		$this->assertNull( ( new CategoryRequired() )->check( $this->rest_context( [ 'categories' => [ $term ] ] ) ) );
+		$this->assertNull( ( new TermCount( min: 1 ) )->check( $this->rest_context( [ 'categories' => [ $term ] ] ) ) );
 	}
 
 	/**
 	 * The default category is what a post gets when nobody chose, so counting it
 	 * would pass every unsorted post.
 	 */
-	public function test_category_required_ignores_the_default_category(): void {
+	public function test_term_count_ignores_the_default_category(): void {
 		$default = (int) get_option( 'default_category' );
 
-		$result = ( new CategoryRequired() )->check( $this->rest_context( [ 'categories' => [ $default ] ] ) );
+		$result = ( new TermCount( min: 1 ) )->check( $this->rest_context( [ 'categories' => [ $default ] ] ) );
 
 		$this->assertInstanceOf( Result::class, $result );
 	}
 
-	public function test_category_required_severity_is_the_sites_call(): void {
-		$result = ( new CategoryRequired( Severity::Warn ) )->check( $this->rest_context() );
-
-		$this->assertSame( Severity::Warn, $result->severity );
-	}
-
-	// --- SingleCategory -------------------------------------------------------
-
-	public function test_single_category_passes_with_one(): void {
-		$term = self::factory()->category->create();
-
-		$this->assertNull( ( new SingleCategory() )->check( $this->rest_context( [ 'categories' => [ $term ] ] ) ) );
-	}
-
-	public function test_single_category_warns_with_two(): void {
+	public function test_term_count_caps_the_maximum(): void {
 		$a = self::factory()->category->create( [ 'slug' => 'a' ] );
 		$b = self::factory()->category->create( [ 'slug' => 'b' ] );
 
-		$result = ( new SingleCategory() )->check( $this->rest_context( [ 'categories' => [ $a, $b ] ] ) );
+		$result = ( new TermCount( max: 1 ) )->check( $this->rest_context( [ 'categories' => [ $a, $b ] ] ) );
 
 		$this->assertInstanceOf( Result::class, $result );
-		$this->assertSame( Severity::Warn, $result->severity );
-		$this->assertStringContainsString( '2', $result->message );
+		$this->assertStringContainsString( 'just one', $result->message );
 	}
 
 	/**
-	 * Silent on none: that is CategoryRequired's question, and two rules
-	 * complaining about one empty field reads as a bug.
+	 * min and max together: exactly one.
 	 */
-	public function test_single_category_is_silent_when_there_are_none(): void {
-		$this->assertNull( ( new SingleCategory() )->check( $this->rest_context() ) );
+	public function test_term_count_accepts_a_range(): void {
+		$a    = self::factory()->category->create( [ 'slug' => 'x' ] );
+		$b    = self::factory()->category->create( [ 'slug' => 'y' ] );
+		$rule = new TermCount( min: 1, max: 1 );
+
+		$this->assertNull( $rule->check( $this->rest_context( [ 'categories' => [ $a ] ] ) ) );
+		$this->assertInstanceOf( Result::class, $rule->check( $this->rest_context() ) );
+		$this->assertInstanceOf( Result::class, $rule->check( $this->rest_context( [ 'categories' => [ $a, $b ] ] ) ) );
+	}
+
+	public function test_term_count_requiring_more_than_one_says_so(): void {
+		$term   = self::factory()->category->create( [ 'slug' => 'solo' ] );
+		$result = ( new TermCount( min: 2 ) )->check( $this->rest_context( [ 'categories' => [ $term ] ] ) );
+
+		$this->assertStringContainsString( 'at least 2', $result->message );
+		$this->assertStringContainsString( 'you have 1', $result->message );
+	}
+
+	public function test_term_count_with_no_bounds_never_complains(): void {
+		$this->assertNull( ( new TermCount() )->check( $this->rest_context() ) );
+	}
+
+	/**
+	 * Several of these get registered at once, so each must be addressable on
+	 * its own by the post-types filter.
+	 */
+	public function test_term_count_ids_are_unique_per_taxonomy(): void {
+		$this->assertSame( 'term_count_category', ( new TermCount() )->id() );
+		$this->assertSame( 'term_count_post_tag', ( new TermCount( taxonomy: 'post_tag' ) )->id() );
+	}
+
+	public function test_term_count_works_on_another_taxonomy(): void {
+		$tag = self::factory()->tag->create( [ 'slug' => 'news' ] );
+
+		$rule    = new TermCount( Severity::Warn, 'post_tag', max: 1 );
+		$request = [ 'tags' => [ $tag, self::factory()->tag->create( [ 'slug' => 'more' ] ) ] ];
+
+		$result = $rule->check( $this->rest_context( $request ) );
+
+		$this->assertInstanceOf( Result::class, $result );
+		$this->assertSame( Severity::Warn, $result->severity );
 	}
 
 	// --- MinimumLength --------------------------------------------------------
