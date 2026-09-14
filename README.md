@@ -48,10 +48,10 @@ Every applicable rule runs on the same save. Their messages are joined into one 
 
 ```php
 // Severity left at the rule's default, only the interesting value given.
-$rules[] = new MinimumLength( words: 30 );
+$rules[] = new ContentLength( words: 30 );
 
 // Severity changed, everything else default.
-$rules[] = new ExcerptRequired( Severity::Block );
+$rules[] = new Excerpt( Severity::Block );
 
 // Severity positionally, the rest named. A bare 70 here would be typed but
 // unreadable: nothing at the call site says what it counts.
@@ -67,8 +67,8 @@ $rules[] = new TermCount( taxonomy: 'series', min: 2 );
 |---|---|---|
 | `FeaturedImage` | Block | `Severity` |
 | `TermCount` | Block | `Severity`, `$taxonomy`, `$min`, `$max` |
-| `MinimumLength` | Warn | `Severity`, `$words` |
-| `ExcerptRequired` | Warn | `Severity` |
+| `ContentLength` | Warn | `Severity`, `$words` |
+| `Excerpt` | Warn | `Severity` |
 | `TitleLength` | Warn | `Severity`, `$characters` |
 | `ImageAltText` | Warn | `Severity` |
 
@@ -108,11 +108,11 @@ Messages use the taxonomy's own labels, so a custom taxonomy reads as itself rat
 ```php
 // A floor on length, aimed at the empty placeholder published by accident
 // rather than at short posts written on purpose.
-new MinimumLength( words: 50 );
+new ContentLength( words: 50 );
 
 // Archives and share cards fall back to a truncated body without one, which
 // lands mid-sentence more often than not.
-new ExcerptRequired();
+new Excerpt();
 
 // 60 characters is where Google truncates a result and where a card layout
 // usually wraps to a third line.
@@ -122,6 +122,23 @@ new TitleLength( characters: 60 );
 // alt="" is the correct way to mark a decorative image.
 new ImageAltText();
 ```
+
+## Naming a rule
+
+Name the **subject**, and add a **dimension** only when something is measured:
+
+| Shape | When | Examples |
+|---|---|---|
+| `<Subject>` | the thing is there or it is not | `FeaturedImage`, `Excerpt`, `ImageAltText` |
+| `<Subject><Dimension>` | something is counted or measured | `TitleLength`, `ContentLength`, `TermCount` |
+
+Two things deliberately stay **out** of the name.
+
+**The bound.** `MinimumLength` could only ever be a floor, so the name would have become a lie the day it learned a maximum. `ContentLength` takes `words` now and could take a cap later without renaming, the way `TermCount` already takes `min` and `max`.
+
+**The severity.** A rule called `FeaturedImageRequired` registered as `new FeaturedImageRequired( Severity::Warn )` says required and then says it is only a warning. How serious a failure is belongs to the site, chosen at registration, so no name should assert it.
+
+The `id()` follows the class in snake_case (`content_length`, `term_count_category`). It is the error code and the key `mai_publish_requirements_rule_post_types` matches on, so it is user-facing and should not drift from the name.
 
 ## Writing a rule
 

@@ -18,14 +18,14 @@ defined( 'ABSPATH' ) || exit;
  * post reads fine either way, so this warns: it is the difference between a
  * tidy card and an untidy one, not between working and broken.
  */
-class ExcerptRequired extends Rule {
+class Excerpt extends Rule {
 
 	public function __construct(
 		protected readonly Severity $severity = Severity::Warn,
 	) {}
 
 	public function id(): string {
-		return 'excerpt_required';
+		return 'excerpt';
 	}
 
 	public function check( Context $context ): ?Result {
