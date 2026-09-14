@@ -104,11 +104,53 @@ jobs:
       - name: Activate with no dev deps — must not fatal
         run: wp plugin activate mai-publish-requirements --path="$HOME/wp"
 
-      - name: Smoke — publishing without a featured image is kept Pending
+      # The plugin registers NOTHING by default (0.2.0). A site opts in, so a
+      # bare install must let an imageless post through. This is the half that
+      # would silently break a site that upgraded without adding its filter.
+      - name: Smoke — nothing is gated until a site registers a rule
         run: |
-          STATUS=$(wp eval --path="$HOME/wp" '$id = wp_insert_post(["post_title" => "ci", "post_type" => "post", "post_status" => "publish"]); echo get_post_status($id);')
+          STATUS=$(wp eval --path="$HOME/wp" '$id = wp_insert_post(["post_title" => "ci unregistered", "post_type" => "post", "post_status" => "publish"]); echo get_post_status($id);')
+          echo "status=$STATUS"
+          [ "$STATUS" = "publish" ] || { echo "::error::A bare install gated a post; the registry should be empty"; exit 1; }
+
+      - name: Register a blocking rule, the way a site does
+        run: |
+          mkdir -p "$HOME/wp/wp-content/mu-plugins"
+          cat > "$HOME/wp/wp-content/mu-plugins/ci-rules.php" <<'PHP'
+          <?php
+          add_filter( 'mai_publish_requirements_rules', function ( array $rules ): array {
+          	$rules[] = new \Mai\PublishRequirements\Rules\FeaturedImage(
+          		\Mai\PublishRequirements\Severity::Block
+          	);
+
+          	return $rules;
+          } );
+          PHP
+
+      - name: Smoke — a registered rule keeps an imageless post Pending
+        run: |
+          STATUS=$(wp eval --path="$HOME/wp" '$id = wp_insert_post(["post_title" => "ci registered", "post_type" => "post", "post_status" => "publish"]); echo get_post_status($id);')
           echo "status=$STATUS"
           [ "$STATUS" = "pending" ] || { echo "::error::Gate did not engage on a production install"; exit 1; }
+
+      # A warning must NOT demote. Same install, a rule that only warns.
+      - name: Smoke — a warning lets the post through
+        run: |
+          cat > "$HOME/wp/wp-content/mu-plugins/ci-rules.php" <<'PHP'
+          <?php
+          add_filter( 'mai_publish_requirements_rules', function ( array $rules ): array {
+          	$rules[] = new \Mai\PublishRequirements\Rules\TitleLength(
+          		\Mai\PublishRequirements\Severity::Warn,
+          		5
+          	);
+
+          	return $rules;
+          } );
+          PHP
+          STATUS=$(wp eval --path="$HOME/wp" '$id = wp_insert_post(["post_title" => "a title far longer than five characters", "post_type" => "post", "post_status" => "publish"]); echo get_post_status($id);')
+          echo "status=$STATUS"
+          [ "$STATUS" = "publish" ] || { echo "::error::A warning demoted the post; only a block may do that"; exit 1; }
+          rm -f "$HOME/wp/wp-content/mu-plugins/ci-rules.php"
 
       # Guard: a production install must not add or remove any tracked vendor
       # file. Added/deleted files mean the committed tree is missing a prod
