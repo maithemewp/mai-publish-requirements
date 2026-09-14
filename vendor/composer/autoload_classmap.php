@@ -7,13 +7,19 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
-    'Mai\\PublishRequirements\\AdminSettings' => $baseDir . '/includes/AdminSettings.php',
     'Mai\\PublishRequirements\\Context' => $baseDir . '/includes/Context.php',
     'Mai\\PublishRequirements\\Gate' => $baseDir . '/includes/Gate.php',
     'Mai\\PublishRequirements\\Plugin' => $baseDir . '/includes/Plugin.php',
+    'Mai\\PublishRequirements\\Result' => $baseDir . '/includes/Result.php',
     'Mai\\PublishRequirements\\Rules' => $baseDir . '/includes/Rules.php',
+    'Mai\\PublishRequirements\\Rules\\ExcerptRequired' => $baseDir . '/includes/Rules/ExcerptRequired.php',
     'Mai\\PublishRequirements\\Rules\\FeaturedImage' => $baseDir . '/includes/Rules/FeaturedImage.php',
+    'Mai\\PublishRequirements\\Rules\\ImageAltText' => $baseDir . '/includes/Rules/ImageAltText.php',
+    'Mai\\PublishRequirements\\Rules\\MinimumLength' => $baseDir . '/includes/Rules/MinimumLength.php',
+    'Mai\\PublishRequirements\\Rules\\Rule' => $baseDir . '/includes/Rules/Rule.php',
     'Mai\\PublishRequirements\\Rules\\RuleInterface' => $baseDir . '/includes/Rules/RuleInterface.php',
-    'Mai\\PublishRequirements\\Settings' => $baseDir . '/includes/Settings.php',
+    'Mai\\PublishRequirements\\Rules\\TermCount' => $baseDir . '/includes/Rules/TermCount.php',
+    'Mai\\PublishRequirements\\Rules\\TitleLength' => $baseDir . '/includes/Rules/TitleLength.php',
+    'Mai\\PublishRequirements\\Severity' => $baseDir . '/includes/Severity.php',
     'Mai\\PublishRequirements\\Updater' => $baseDir . '/includes/Updater.php',
 );

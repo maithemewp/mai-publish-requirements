@@ -26,14 +26,20 @@ class ComposerStaticInitfeece85797c21a345016c80931a6e5b4
 
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
-        'Mai\\PublishRequirements\\AdminSettings' => __DIR__ . '/../..' . '/includes/AdminSettings.php',
         'Mai\\PublishRequirements\\Context' => __DIR__ . '/../..' . '/includes/Context.php',
         'Mai\\PublishRequirements\\Gate' => __DIR__ . '/../..' . '/includes/Gate.php',
         'Mai\\PublishRequirements\\Plugin' => __DIR__ . '/../..' . '/includes/Plugin.php',
+        'Mai\\PublishRequirements\\Result' => __DIR__ . '/../..' . '/includes/Result.php',
         'Mai\\PublishRequirements\\Rules' => __DIR__ . '/../..' . '/includes/Rules.php',
+        'Mai\\PublishRequirements\\Rules\\ExcerptRequired' => __DIR__ . '/../..' . '/includes/Rules/ExcerptRequired.php',
         'Mai\\PublishRequirements\\Rules\\FeaturedImage' => __DIR__ . '/../..' . '/includes/Rules/FeaturedImage.php',
+        'Mai\\PublishRequirements\\Rules\\ImageAltText' => __DIR__ . '/../..' . '/includes/Rules/ImageAltText.php',
+        'Mai\\PublishRequirements\\Rules\\MinimumLength' => __DIR__ . '/../..' . '/includes/Rules/MinimumLength.php',
+        'Mai\\PublishRequirements\\Rules\\Rule' => __DIR__ . '/../..' . '/includes/Rules/Rule.php',
         'Mai\\PublishRequirements\\Rules\\RuleInterface' => __DIR__ . '/../..' . '/includes/Rules/RuleInterface.php',
-        'Mai\\PublishRequirements\\Settings' => __DIR__ . '/../..' . '/includes/Settings.php',
+        'Mai\\PublishRequirements\\Rules\\TermCount' => __DIR__ . '/../..' . '/includes/Rules/TermCount.php',
+        'Mai\\PublishRequirements\\Rules\\TitleLength' => __DIR__ . '/../..' . '/includes/Rules/TitleLength.php',
+        'Mai\\PublishRequirements\\Severity' => __DIR__ . '/../..' . '/includes/Severity.php',
         'Mai\\PublishRequirements\\Updater' => __DIR__ . '/../..' . '/includes/Updater.php',
     );
 
