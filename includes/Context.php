@@ -22,7 +22,9 @@ final class Context {
 		public readonly bool $is_rest,
 		private readonly ?\WP_REST_Request $request,
 		private readonly array $postarr,
-		private readonly ?string $incoming_content = null
+		private readonly ?string $incoming_content = null,
+		private readonly ?string $incoming_title = null,
+		private readonly ?string $incoming_excerpt = null
 	) {}
 
 	/**
@@ -43,8 +45,10 @@ final class Context {
 		// omitted content (a partial update), which content() reads as "unchanged"
 		// and answers from the stored post.
 		$content = property_exists( $prepared, 'post_content' ) ? (string) $prepared->post_content : null;
+		$title   = property_exists( $prepared, 'post_title' ) ? (string) $prepared->post_title : null;
+		$excerpt = property_exists( $prepared, 'post_excerpt' ) ? (string) $prepared->post_excerpt : null;
 
-		return new self( $post_id, $post_type, $new_status, $old_status, true, $request, [], $content );
+		return new self( $post_id, $post_type, $new_status, $old_status, true, $request, [], $content, $title, $excerpt );
 	}
 
 	/**
@@ -60,8 +64,10 @@ final class Context {
 		$new_status = (string) ( $data['post_status'] ?? '' );
 
 		$content = array_key_exists( 'post_content', $data ) ? (string) $data['post_content'] : null;
+		$title   = array_key_exists( 'post_title', $data ) ? (string) $data['post_title'] : null;
+		$excerpt = array_key_exists( 'post_excerpt', $data ) ? (string) $data['post_excerpt'] : null;
 
-		return new self( $post_id, $post_type, $new_status, $old_status, false, null, $postarr, $content );
+		return new self( $post_id, $post_type, $new_status, $old_status, false, null, $postarr, $content, $title, $excerpt );
 	}
 
 	/**
@@ -106,7 +112,32 @@ final class Context {
 			return $this->incoming_content;
 		}
 
-		return $this->post_id ? (string) get_post_field( 'post_content', $this->post_id ) : '';
+		return $this->stored_field( 'post_content' );
+	}
+
+	/**
+	 * The title being saved, falling back to what is stored.
+	 */
+	public function title(): string {
+		return $this->incoming_title ?? $this->stored_field( 'post_title' );
+	}
+
+	/**
+	 * The hand-written excerpt being saved, falling back to what is stored.
+	 *
+	 * Empty means there is none. Core generates a display excerpt from the body
+	 * when this is blank, but that is a rendering fallback rather than something
+	 * an author wrote, and a rule asking for an excerpt is asking for the latter.
+	 */
+	public function excerpt(): string {
+		return $this->incoming_excerpt ?? $this->stored_field( 'post_excerpt' );
+	}
+
+	/**
+	 * A field of the stored post, or '' for one that does not exist yet.
+	 */
+	private function stored_field( string $field ): string {
+		return $this->post_id ? (string) get_post_field( $field, $this->post_id ) : '';
 	}
 
 	/**

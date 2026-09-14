@@ -8,9 +8,11 @@
 
 **The settings screen and its option are gone.** Rules are configured by constructor arguments where they are registered. Post types stay filterable.
 
-**New rules shipped as building blocks:** `CategoryRequired`, `SingleCategory`, `MinimumLength`. None are active until registered.
+**New rules shipped as building blocks:** `CategoryRequired`, `SingleCategory`, `MinimumLength`, `ExcerptRequired`, `TitleLength`, `ImageAltText`. None are active until registered, and most warn rather than block.
 
-**New:** an abstract `Rule` base class, `Context::content()` and `Context::term_slugs()`.
+**Severity is always the first constructor argument**, so the positional order is the same for every rule. Named arguments are the clearer way to pass the rest.
+
+**New:** an abstract `Rule` base class, and `Context::content()`, `title()`, `excerpt()` and `term_slugs()`.
 
 ## 0.1.0 (6/29/26)
 * Added: Initial release — require a featured image before a post can be published, enforced across the block editor (inline error), Quick Edit, bulk edit, and the classic editor (kept as Pending). Per-post-type rule seam with a settings page for choosing which post types are gated.

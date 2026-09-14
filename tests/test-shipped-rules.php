@@ -5,18 +5,24 @@ declare( strict_types=1 );
 use Mai\PublishRequirements\Context;
 use Mai\PublishRequirements\Result;
 use Mai\PublishRequirements\Rules\CategoryRequired;
+use Mai\PublishRequirements\Rules\ExcerptRequired;
+use Mai\PublishRequirements\Rules\ImageAltText;
 use Mai\PublishRequirements\Rules\MinimumLength;
 use Mai\PublishRequirements\Rules\SingleCategory;
+use Mai\PublishRequirements\Rules\TitleLength;
 use Mai\PublishRequirements\Severity;
 
 /**
  * @covers \Mai\PublishRequirements\Rules\CategoryRequired
  * @covers \Mai\PublishRequirements\Rules\SingleCategory
  * @covers \Mai\PublishRequirements\Rules\MinimumLength
+ * @covers \Mai\PublishRequirements\Rules\ExcerptRequired
+ * @covers \Mai\PublishRequirements\Rules\TitleLength
+ * @covers \Mai\PublishRequirements\Rules\ImageAltText
  */
 class Test_Shipped_Rules extends WP_UnitTestCase {
 
-	private function rest_context( array $params = [], string $content = '' ): Context {
+	private function rest_context( array $params = [], string $content = '', array $fields = [] ): Context {
 		$request = new WP_REST_Request();
 		$request['status'] = 'publish';
 
@@ -24,10 +30,12 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 			$request[ $key ] = $value;
 		}
 
-		return Context::from_rest(
-			(object) [ 'ID' => 0, 'post_type' => 'post', 'post_content' => $content ],
-			$request
+		$prepared = (object) array_merge(
+			[ 'ID' => 0, 'post_type' => 'post', 'post_content' => $content ],
+			$fields
 		);
+
+		return Context::from_rest( $prepared, $request );
 	}
 
 	// --- CategoryRequired -----------------------------------------------------
@@ -93,7 +101,7 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 	// --- MinimumLength --------------------------------------------------------
 
 	public function test_minimum_length_warns_when_short(): void {
-		$result = ( new MinimumLength( 50 ) )->check( $this->rest_context( [], 'three words only' ) );
+		$result = ( new MinimumLength( words: 50 ) )->check( $this->rest_context( [], 'three words only' ) );
 
 		$this->assertInstanceOf( Result::class, $result );
 		$this->assertSame( Severity::Warn, $result->severity );
@@ -103,7 +111,7 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 	public function test_minimum_length_passes_when_long_enough(): void {
 		$content = implode( ' ', array_fill( 0, 60, 'word' ) );
 
-		$this->assertNull( ( new MinimumLength( 50 ) )->check( $this->rest_context( [], $content ) ) );
+		$this->assertNull( ( new MinimumLength( words: 50 ) )->check( $this->rest_context( [], $content ) ) );
 	}
 
 	/**
@@ -112,14 +120,104 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 	public function test_minimum_length_does_not_count_block_markup(): void {
 		$content = '<!-- wp:paragraph --><p>one two three</p><!-- /wp:paragraph -->';
 
-		$result = ( new MinimumLength( 50 ) )->check( $this->rest_context( [], $content ) );
+		$result = ( new MinimumLength( words: 50 ) )->check( $this->rest_context( [], $content ) );
 
 		$this->assertStringContainsString( '3 words', $result->message );
 	}
 
 	public function test_minimum_length_can_block_when_asked(): void {
-		$result = ( new MinimumLength( 50, Severity::Block ) )->check( $this->rest_context( [], 'short' ) );
+		$result = ( new MinimumLength( Severity::Block, 50 ) )->check( $this->rest_context( [], 'short' ) );
 
 		$this->assertSame( Severity::Block, $result->severity );
+	}
+
+	// --- ExcerptRequired ------------------------------------------------------
+
+	public function test_excerpt_required_warns_when_missing(): void {
+		$result = ( new ExcerptRequired() )->check( $this->rest_context( [], 'body' ) );
+
+		$this->assertInstanceOf( Result::class, $result );
+		$this->assertSame( Severity::Warn, $result->severity );
+	}
+
+	public function test_excerpt_required_passes_when_written(): void {
+		$context = $this->rest_context( [], 'body', [ 'post_excerpt' => 'A short summary.' ] );
+
+		$this->assertNull( ( new ExcerptRequired() )->check( $context ) );
+	}
+
+	public function test_excerpt_of_only_whitespace_does_not_count(): void {
+		$context = $this->rest_context( [], 'body', [ 'post_excerpt' => "  \n " ] );
+
+		$this->assertInstanceOf( Result::class, ( new ExcerptRequired() )->check( $context ) );
+	}
+
+	// --- TitleLength ----------------------------------------------------------
+
+	public function test_title_length_passes_when_short(): void {
+		$context = $this->rest_context( [], '', [ 'post_title' => 'A sensible headline' ] );
+
+		$this->assertNull( ( new TitleLength() )->check( $context ) );
+	}
+
+	public function test_title_length_warns_when_long(): void {
+		$context = $this->rest_context( [], '', [ 'post_title' => str_repeat( 'a', 80 ) ] );
+
+		$result = ( new TitleLength() )->check( $context );
+
+		$this->assertInstanceOf( Result::class, $result );
+		$this->assertStringContainsString( '80', $result->message );
+	}
+
+	/**
+	 * Counted in characters, not bytes, or an accented title would be called too
+	 * long simply for being accented.
+	 */
+	public function test_title_length_counts_characters_not_bytes(): void {
+		$context = $this->rest_context( [], '', [ 'post_title' => str_repeat( 'é', 40 ) ] );
+
+		$this->assertNull( ( new TitleLength() )->check( $context ) );
+	}
+
+	public function test_title_length_threshold_is_configurable(): void {
+		$context = $this->rest_context( [], '', [ 'post_title' => str_repeat( 'a', 30 ) ] );
+
+		$this->assertNull( ( new TitleLength() )->check( $context ) );
+		$this->assertInstanceOf( Result::class, ( new TitleLength( characters: 20 ) )->check( $context ) );
+	}
+
+	// --- ImageAltText ---------------------------------------------------------
+
+	public function test_alt_text_is_silent_with_no_images(): void {
+		$this->assertNull( ( new ImageAltText() )->check( $this->rest_context( [], 'just words' ) ) );
+	}
+
+	public function test_alt_text_warns_for_an_image_without_alt(): void {
+		$result = ( new ImageAltText() )->check( $this->rest_context( [], '<img src="a.jpg">' ) );
+
+		$this->assertInstanceOf( Result::class, $result );
+		$this->assertSame( Severity::Warn, $result->severity );
+	}
+
+	public function test_alt_text_passes_when_present(): void {
+		$context = $this->rest_context( [], '<img src="a.jpg" alt="A dog on a beach">' );
+
+		$this->assertNull( ( new ImageAltText() )->check( $context ) );
+	}
+
+	/**
+	 * alt="" is the correct way to mark a decorative image, so it must not be
+	 * read as missing.
+	 */
+	public function test_an_empty_alt_is_deliberate_and_passes(): void {
+		$this->assertNull( ( new ImageAltText() )->check( $this->rest_context( [], '<img src="a.jpg" alt="">' ) ) );
+	}
+
+	public function test_alt_text_counts_how_many_are_missing(): void {
+		$content = '<img src="a.jpg"><img src="b.jpg" alt="fine"><img src="c.jpg">';
+
+		$result = ( new ImageAltText() )->check( $this->rest_context( [], $content ) );
+
+		$this->assertStringContainsString( '2', $result->message );
 	}
 }

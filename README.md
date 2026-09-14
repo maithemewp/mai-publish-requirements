@@ -34,6 +34,15 @@ add_filter( 'mai_publish_requirements_rules', function ( array $rules ): array {
 
 Every applicable rule runs on the same save and their messages are joined into one line per severity.
 
+**Severity is always the first argument**, so the positional order is the same for every rule. Anything after it is that rule's own configuration, and named arguments are the clearer way to pass it:
+
+```php
+$rules[] = new MinimumLength( words: 30 );                        // severity left at its default
+$rules[] = new SingleCategory( Severity::Block );                 // severity changed, taxonomy default
+$rules[] = new CategoryRequired( Severity::Warn, 'post_tag' );    // both, positionally
+$rules[] = new CategoryRequired( taxonomy: 'post_tag' );          // or just the one you mean
+```
+
 ## Shipped rules
 
 | Rule | Default severity | Arguments |
@@ -41,9 +50,14 @@ Every applicable rule runs on the same save and their messages are joined into o
 | `FeaturedImage` | Block | `Severity` |
 | `CategoryRequired` | Block | `Severity`, `$taxonomy` |
 | `SingleCategory` | Warn | `Severity`, `$taxonomy` |
-| `MinimumLength` | Warn | `$words`, `$severity` |
+| `MinimumLength` | Warn | `Severity`, `$words` |
+| `ExcerptRequired` | Warn | `Severity` |
+| `TitleLength` | Warn | `Severity`, `$characters` |
+| `ImageAltText` | Warn | `Severity` |
 
-`CategoryRequired` ignores the site's default category, since that is what a post gets when nobody chose. `SingleCategory` says nothing when there are none, because that is `CategoryRequired`'s question.
+`CategoryRequired` ignores the site's default category, since that is what a post gets when nobody chose. `SingleCategory` says nothing when there are none, because that is `CategoryRequired`'s question. `ImageAltText` treats `alt=""` as deliberate, because that is the correct way to mark a decorative image. `TitleLength` counts characters rather than bytes, so an accented title is not called long for being accented.
+
+Most of these warn by default. A rule that blocks is saying the post is broken; a rule that warns is saying it could be better, and that is the usual case.
 
 ## Writing a rule
 
@@ -90,6 +104,7 @@ The message is an imperative **fragment**, not a sentence. Several are joined to
 | `is_publish_transition()` | is this post going live now |
 | `featured_image_id()` | the image being set, or the stored one |
 | `content()` | the body being saved, or the stored one |
+| `title()`, `excerpt()` | the same, for those fields |
 | `term_slugs( $taxonomy )` | terms being assigned, or the stored ones |
 
 ## Configuration

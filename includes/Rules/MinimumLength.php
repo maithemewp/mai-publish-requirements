@@ -23,9 +23,14 @@ defined( 'ABSPATH' ) || exit;
  */
 class MinimumLength extends Rule {
 
+	/**
+	 * Severity first, as every rule here takes it, so the positional order is
+	 * guessable across all of them. The interesting argument is $words, which is
+	 * what named arguments are for: `new MinimumLength( words: 30 )`.
+	 */
 	public function __construct(
-		protected readonly int $words = 50,
 		protected readonly Severity $severity = Severity::Warn,
+		protected readonly int $words = 50,
 	) {}
 
 	public function id(): string {
