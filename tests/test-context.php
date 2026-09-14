@@ -63,4 +63,102 @@ class Test_Context extends WP_UnitTestCase {
 
 		$this->assertSame( 0, $context->featured_image_id() );
 	}
+
+	// --- content() ------------------------------------------------------------
+
+	public function test_content_comes_from_the_prepared_post_on_rest(): void {
+		$prepared = (object) [ 'ID' => 0, 'post_type' => 'post', 'post_content' => 'hello world' ];
+		$request  = new WP_REST_Request();
+
+		$this->assertSame( 'hello world', Context::from_rest( $prepared, $request )->content() );
+	}
+
+	/**
+	 * A partial update that omits content leaves the stored body alone, so a rule
+	 * measuring length must see that body rather than an empty string.
+	 */
+	public function test_content_falls_back_to_the_stored_post(): void {
+		$post_id = self::factory()->post->create( [ 'post_content' => 'stored body' ] );
+		$request = new WP_REST_Request();
+
+		$context = Context::from_rest( (object) [ 'ID' => $post_id, 'post_type' => 'post' ], $request );
+
+		$this->assertSame( 'stored body', $context->content() );
+	}
+
+	public function test_content_comes_from_data_on_a_classic_save(): void {
+		$context = Context::from_save(
+			[ 'post_type' => 'post', 'post_status' => 'publish', 'post_content' => 'classic body' ],
+			[ 'ID' => 0 ]
+		);
+
+		$this->assertSame( 'classic body', $context->content() );
+	}
+
+	public function test_content_is_empty_for_a_new_post_with_none(): void {
+		$context = Context::from_save( [ 'post_type' => 'post' ], [ 'ID' => 0 ] );
+
+		$this->assertSame( '', $context->content() );
+	}
+
+	// --- term_slugs() ---------------------------------------------------------
+
+	/**
+	 * REST sends term IDs under the taxonomy's rest_base, which is 'categories'
+	 * for 'category' and not the taxonomy name.
+	 */
+	public function test_term_slugs_reads_rest_base_and_resolves_ids(): void {
+		$term_id = self::factory()->category->create( [ 'slug' => 'politics' ] );
+		$request = new WP_REST_Request();
+		$request['categories'] = [ $term_id ];
+
+		$context = Context::from_rest( (object) [ 'ID' => 0, 'post_type' => 'post' ], $request );
+
+		$this->assertSame( [ 'politics' ], $context->term_slugs( 'category' ) );
+	}
+
+	public function test_term_slugs_reads_post_category_on_a_classic_save(): void {
+		$term_id = self::factory()->category->create( [ 'slug' => 'sport' ] );
+
+		$context = Context::from_save(
+			[ 'post_type' => 'post' ],
+			[ 'ID' => 0, 'post_category' => [ $term_id ] ]
+		);
+
+		$this->assertSame( [ 'sport' ], $context->term_slugs( 'category' ) );
+	}
+
+	public function test_term_slugs_reads_tax_input(): void {
+		$term_id = self::factory()->category->create( [ 'slug' => 'culture' ] );
+
+		$context = Context::from_save(
+			[ 'post_type' => 'post' ],
+			[ 'ID' => 0, 'tax_input' => [ 'category' => [ $term_id ] ] ]
+		);
+
+		$this->assertSame( [ 'culture' ], $context->term_slugs( 'category' ) );
+	}
+
+	/**
+	 * A save that never mentions terms keeps the stored ones, which is different
+	 * from a save that clears them.
+	 */
+	public function test_term_slugs_falls_back_to_stored_terms(): void {
+		$term_id = self::factory()->category->create( [ 'slug' => 'archive' ] );
+		$post_id = self::factory()->post->create();
+		wp_set_object_terms( $post_id, [ $term_id ], 'category' );
+
+		$context = Context::from_save( [ 'post_type' => 'post' ], [ 'ID' => $post_id ] );
+
+		$this->assertContains( 'archive', $context->term_slugs( 'category' ) );
+	}
+
+	public function test_term_slugs_drops_ids_that_do_not_resolve(): void {
+		$request = new WP_REST_Request();
+		$request['categories'] = [ 999999 ];
+
+		$context = Context::from_rest( (object) [ 'ID' => 0, 'post_type' => 'post' ], $request );
+
+		$this->assertSame( [], $context->term_slugs( 'category' ) );
+	}
 }

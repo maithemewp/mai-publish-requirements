@@ -4,16 +4,42 @@ declare( strict_types=1 );
 
 use Mai\PublishRequirements\Gate;
 use Mai\PublishRequirements\Context;
-use Mai\PublishRequirements\Settings;
+use Mai\PublishRequirements\Rules\FeaturedImage;
+use Mai\PublishRequirements\Severity;
 
 /**
  * @covers \Mai\PublishRequirements\Gate
  */
 class Test_Gate extends WP_UnitTestCase {
 
+	/** @var callable|null */
+	private $registered = null;
+
 	public function set_up(): void {
 		parent::set_up();
-		Settings::flush_cache();
+
+		// Nothing is registered by default any more, so these tests supply the
+		// rule they are about. That IS the plugin's contract: a site opts in.
+		$this->register_rule( new FeaturedImage() );
+	}
+
+	public function tear_down(): void {
+		if ( $this->registered ) {
+			remove_filter( 'mai_publish_requirements_rules', $this->registered );
+			$this->registered = null;
+		}
+
+		parent::tear_down();
+	}
+
+	private function register_rule( object $rule ): void {
+		if ( $this->registered ) {
+			remove_filter( 'mai_publish_requirements_rules', $this->registered );
+		}
+
+		$this->registered = static fn ( array $rules ): array => array_merge( $rules, [ $rule ] );
+
+		add_filter( 'mai_publish_requirements_rules', $this->registered );
 	}
 
 	/**
@@ -138,7 +164,7 @@ class Test_Gate extends WP_UnitTestCase {
 	}
 
 	public function test_notice_renders_for_a_real_reason(): void {
-		set_transient( 'mai_publish_requirements_blocked_' . get_current_user_id(), [ 'set a featured image' ], MINUTE_IN_SECONDS );
+		set_transient( 'mai_publish_requirements_block_' . get_current_user_id(), [ 'set a featured image' ], MINUTE_IN_SECONDS );
 
 		$out = $this->notice_output();
 
@@ -148,13 +174,13 @@ class Test_Gate extends WP_UnitTestCase {
 	public function test_notice_is_silent_for_an_empty_string_transient(): void {
 		// A persistent object cache can hand back '' instead of false; (array) ''
 		// is [''], which must not render an empty-bullet notice on every page.
-		set_transient( 'mai_publish_requirements_blocked_' . get_current_user_id(), '', MINUTE_IN_SECONDS );
+		set_transient( 'mai_publish_requirements_block_' . get_current_user_id(), '', MINUTE_IN_SECONDS );
 
 		$this->assertSame( '', $this->notice_output() );
 	}
 
 	public function test_notice_never_emits_an_empty_list_item(): void {
-		set_transient( 'mai_publish_requirements_blocked_' . get_current_user_id(), [ '', 'set a featured image', '' ], MINUTE_IN_SECONDS );
+		set_transient( 'mai_publish_requirements_block_' . get_current_user_id(), [ '', 'set a featured image', '' ], MINUTE_IN_SECONDS );
 
 		$this->assertStringNotContainsString( '<li></li>', $this->notice_output() );
 	}
@@ -169,5 +195,90 @@ class Test_Gate extends WP_UnitTestCase {
 		$data = $gate->guard_non_rest( [ 'post_type' => 'post', 'post_status' => 'publish' ], [] );
 
 		$this->assertSame( 'publish', $data['post_status'] );
+	}
+
+	// --- warnings -----------------------------------------------------------
+
+	/**
+	 * A warning never demotes. That is the whole distinction from a block, and
+	 * it is what lets a rule say "this is heavy" without stopping the press.
+	 */
+	public function test_a_warning_does_not_demote_the_post(): void {
+		$this->register_rule( $this->warning_rule() );
+
+		$data = ( new Test_Gate_Non_Rest_Double() )->guard_non_rest(
+			[ 'post_type' => 'post', 'post_status' => 'publish' ],
+			[ 'ID' => 0 ]
+		);
+
+		$this->assertSame( 'publish', $data['post_status'] );
+	}
+
+	public function test_a_warning_notice_renders_separately_from_a_block(): void {
+		set_transient( 'mai_publish_requirements_warn_' . get_current_user_id(), [ 'trim this down' ], MINUTE_IN_SECONDS );
+
+		$out = $this->notice_output();
+
+		$this->assertStringContainsString( 'trim this down', $out );
+		$this->assertStringContainsString( 'notice-warning', $out );
+		$this->assertStringNotContainsString( 'notice-error', $out );
+	}
+
+	public function test_a_block_notice_is_still_an_error(): void {
+		set_transient( 'mai_publish_requirements_block_' . get_current_user_id(), [ 'set a featured image' ], MINUTE_IN_SECONDS );
+
+		$out = $this->notice_output();
+
+		$this->assertStringContainsString( 'notice-error', $out );
+		$this->assertStringNotContainsString( 'notice-warning', $out );
+	}
+
+	/**
+	 * Both from one save: two problems, two notices, neither wording claiming
+	 * the other's consequence.
+	 */
+	public function test_both_severities_render_together(): void {
+		set_transient( 'mai_publish_requirements_block_' . get_current_user_id(), [ 'set a featured image' ], MINUTE_IN_SECONDS );
+		set_transient( 'mai_publish_requirements_warn_' . get_current_user_id(), [ 'trim this down' ], MINUTE_IN_SECONDS );
+
+		$out = $this->notice_output();
+
+		$this->assertStringContainsString( 'notice-error', $out );
+		$this->assertStringContainsString( 'notice-warning', $out );
+		$this->assertStringContainsString( 'set a featured image', $out );
+		$this->assertStringContainsString( 'trim this down', $out );
+	}
+
+	public function test_evaluate_returns_results_carrying_severity(): void {
+		$this->register_rule( $this->warning_rule() );
+
+		$context = Context::from_rest( (object) [ 'ID' => 0, 'post_type' => 'post' ], $this->publish_request() );
+		$results = ( new Gate() )->evaluate( $context );
+
+		$this->assertCount( 1, $results );
+		$this->assertSame( Severity::Warn, $results[0]->severity );
+		$this->assertFalse( $results[0]->is_block() );
+	}
+
+	private function warning_rule(): object {
+		return new class() extends \Mai\PublishRequirements\Rules\Rule {
+			public function id(): string {
+				return 'always_warns';
+			}
+
+			public function check( Context $context ): ?\Mai\PublishRequirements\Result {
+				return new \Mai\PublishRequirements\Result( Severity::Warn, 'trim this down' );
+			}
+		};
+	}
+}
+
+/**
+ * Forces the non-REST path without defining REST_REQUEST process-wide.
+ */
+class Test_Gate_Non_Rest_Double extends Gate {
+
+	protected function is_rest_request(): bool {
+		return false;
 	}
 }

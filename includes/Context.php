@@ -21,7 +21,8 @@ final class Context {
 		public readonly string $old_status,
 		public readonly bool $is_rest,
 		private readonly ?\WP_REST_Request $request,
-		private readonly array $postarr
+		private readonly array $postarr,
+		private readonly ?string $incoming_content = null
 	) {}
 
 	/**
@@ -36,7 +37,14 @@ final class Context {
 		$post_type  = (string) ( $prepared->post_type ?? ( $post_id ? get_post_type( $post_id ) : 'post' ) );
 		$new_status = isset( $request['status'] ) ? (string) $request['status'] : $old_status;
 
-		return new self( $post_id, $post_type, $new_status, $old_status, true, $request, [] );
+		// post_content off $prepared, NOT off the request. Core has already
+		// normalised it here, while $request['content'] arrives either as a string
+		// or as [ 'raw' => ... ] depending on the caller. Null when the request
+		// omitted content (a partial update), which content() reads as "unchanged"
+		// and answers from the stored post.
+		$content = property_exists( $prepared, 'post_content' ) ? (string) $prepared->post_content : null;
+
+		return new self( $post_id, $post_type, $new_status, $old_status, true, $request, [], $content );
 	}
 
 	/**
@@ -51,7 +59,9 @@ final class Context {
 		$post_type  = (string) ( $data['post_type'] ?? '' );
 		$new_status = (string) ( $data['post_status'] ?? '' );
 
-		return new self( $post_id, $post_type, $new_status, $old_status, false, null, $postarr );
+		$content = array_key_exists( 'post_content', $data ) ? (string) $data['post_content'] : null;
+
+		return new self( $post_id, $post_type, $new_status, $old_status, false, null, $postarr, $content );
 	}
 
 	/**
@@ -81,5 +91,90 @@ final class Context {
 		}
 
 		return $this->post_id ? (int) get_post_thumbnail_id( $this->post_id ) : 0;
+	}
+
+	/**
+	 * The post body being saved, falling back to what is stored.
+	 *
+	 * A partial update that does not send content leaves the stored body in
+	 * place, so a rule measuring length or counting embeds has to see that body
+	 * rather than an empty string, or every such save would look like a post
+	 * that had suddenly been emptied.
+	 */
+	public function content(): string {
+		if ( null !== $this->incoming_content ) {
+			return $this->incoming_content;
+		}
+
+		return $this->post_id ? (string) get_post_field( 'post_content', $this->post_id ) : '';
+	}
+
+	/**
+	 * Term slugs being set on this save, for one taxonomy.
+	 *
+	 * Three sources, because the same assignment arrives three different shapes:
+	 * a REST request carries term IDs under the taxonomy's `rest_base`, which is
+	 * `categories` for `category` and not the taxonomy name; a classic save
+	 * carries them in `tax_input` (ids or names) or `post_category` (ids); and a
+	 * save that touches neither leaves the stored terms alone.
+	 *
+	 * Normalised to slugs so a rule never has to know which path it came through,
+	 * which is this class's whole job.
+	 *
+	 * @return string[]
+	 */
+	public function term_slugs( string $taxonomy ): array {
+		$raw = $this->incoming_terms( $taxonomy );
+
+		if ( null === $raw ) {
+			return $this->post_id
+				? array_values( array_map( 'strval', (array) wp_get_object_terms( $this->post_id, $taxonomy, [ 'fields' => 'slugs' ] ) ) )
+				: [];
+		}
+
+		$slugs = [];
+
+		foreach ( $raw as $value ) {
+			// tax_input for a non-hierarchical taxonomy holds NAMES, everything
+			// else holds ids, and a term that does not resolve is dropped rather
+			// than guessed at.
+			$term = is_numeric( $value )
+				? get_term( (int) $value, $taxonomy )
+				: get_term_by( 'name', (string) $value, $taxonomy );
+
+			if ( $term instanceof \WP_Term ) {
+				$slugs[] = $term->slug;
+			}
+		}
+
+		return array_values( array_unique( $slugs ) );
+	}
+
+	/**
+	 * The raw term values this save is assigning, or null when it assigns none.
+	 *
+	 * Null and an empty array mean different things: null is "this save did not
+	 * mention terms, keep what is stored", while [] is "this save cleared them".
+	 *
+	 * @return array<int,int|string>|null
+	 */
+	private function incoming_terms( string $taxonomy ): ?array {
+		if ( $this->is_rest && $this->request ) {
+			$tax  = get_taxonomy( $taxonomy );
+			$base = ( $tax && $tax->rest_base ) ? $tax->rest_base : $taxonomy;
+
+			return isset( $this->request[ $base ] ) ? (array) $this->request[ $base ] : null;
+		}
+
+		if ( isset( $this->postarr['tax_input'][ $taxonomy ] ) ) {
+			return (array) $this->postarr['tax_input'][ $taxonomy ];
+		}
+
+		// Core's own special case: the category box posts here, not to tax_input.
+		if ( 'category' === $taxonomy && isset( $this->postarr['post_category'] ) ) {
+			return (array) $this->postarr['post_category'];
+		}
+
+		return null;
 	}
 }
