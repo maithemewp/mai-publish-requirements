@@ -28,6 +28,11 @@ class Gate {
 	public const REST_FIELD = 'mai_publish_warnings';
 
 	/**
+	 * Namespace of the route the block editor asks before publishing.
+	 */
+	public const REST_NAMESPACE = 'mai-publish-requirements/v1';
+
+	/**
 	 * Warnings raised during THIS request's insert, waiting for the response.
 	 *
 	 * Request-scoped static rather than a transient: the guard and the response
@@ -44,6 +49,7 @@ class Gate {
 	public function register(): void {
 		add_action( 'rest_api_init', [ $this, 'register_rest_gate' ] );
 		add_action( 'rest_api_init', [ $this, 'register_rest_field' ] );
+		add_action( 'rest_api_init', [ $this, 'register_check_route' ] );
 		add_filter( 'wp_insert_post_data', [ $this, 'guard_non_rest' ], 10, 2 );
 		add_action( 'admin_notices', [ $this, 'maybe_render_notice' ] );
 		add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_script' ] );
@@ -62,7 +68,7 @@ class Gate {
 				$post_type,
 				self::REST_FIELD,
 				[
-					'get_callback' => static fn (): array => self::$pending_warnings,
+					'get_callback' => static fn (): array => self::rest_warnings(),
 					'schema'       => [
 						'description' => __( 'Publish warnings raised by the save that produced this response.', 'mai-publish-requirements' ),
 						'type'        => 'array',
@@ -73,6 +79,77 @@ class Gate {
 				]
 			);
 		}
+	}
+
+	/**
+	 * This request's warnings as the author reads them: one full sentence.
+	 *
+	 * The editor shows these as they are, so they are formatted here, the same
+	 * way the admin notice formats its own. Bare fragments would read as a
+	 * lowercase phrase with nothing around it.
+	 *
+	 * @return string[]
+	 */
+	public static function rest_warnings(): array {
+		return self::$pending_warnings ? [ self::format_message( self::$pending_warnings, Severity::Warn ) ] : [];
+	}
+
+	/**
+	 * The route the block editor calls before it publishes, to learn whether to
+	 * ask "Publish anyway?".
+	 *
+	 * The rules are PHP, so the editor cannot evaluate them itself. It sends
+	 * what it is about to save and gets back the question to ask, or an empty
+	 * string. Nothing is saved here, and the real save still runs every rule.
+	 */
+	public function register_check_route(): void {
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/check',
+			[
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => [ $this, 'check_route' ],
+				'permission_callback' => static fn ( \WP_REST_Request $request ): bool => current_user_can( 'edit_post', (int) $request['id'] ),
+				'args'                => [
+					'id'      => [ 'type' => 'integer', 'required' => true ],
+					'status'  => [ 'type' => 'string', 'required' => true ],
+					'content' => [ 'type' => 'string' ],
+					'title'   => [ 'type' => 'string' ],
+					'excerpt' => [ 'type' => 'string' ],
+				],
+			]
+		);
+	}
+
+	/**
+	 * Answers the editor's check with the question to ask, or ''.
+	 *
+	 * Only a post going live is asked about. An update to a live post is not:
+	 * it would ask on every Update click, and the after-save warning covers it.
+	 * Term and featured image values the editor sends ride along on the request,
+	 * which Context reads the same way it reads a real save.
+	 */
+	public function check_route( \WP_REST_Request $request ): \WP_REST_Response {
+		$post_id  = (int) $request['id'];
+		$prepared = (object) [
+			'ID'        => $post_id,
+			'post_type' => (string) get_post_type( $post_id ),
+		];
+
+		// Only what the editor sent. A missing field means unchanged, and
+		// Context then reads the stored post.
+		foreach ( [ 'content' => 'post_content', 'title' => 'post_title', 'excerpt' => 'post_excerpt' ] as $param => $field ) {
+			if ( null !== $request[ $param ] ) {
+				$prepared->$field = (string) $request[ $param ];
+			}
+		}
+
+		$context  = Context::from_rest( $prepared, $request );
+		$confirms = $context->is_publish_transition() && in_array( $context->post_type, Rules::gated_post_types(), true )
+			? self::messages( $this->evaluate( $context ), Severity::Confirm )
+			: [];
+
+		return new \WP_REST_Response( [ 'message' => $confirms ? self::format_message( $confirms, Severity::Confirm ) : '' ] );
 	}
 
 	/**
@@ -124,7 +201,7 @@ class Gate {
 		// third answer meaning "saved, but read this". They are stashed for the
 		// REST response instead, which is the one channel that reaches the block
 		// editor after a successful save.
-		self::$pending_warnings = self::messages( $results, Severity::Warn );
+		self::$pending_warnings = self::warnings( $results );
 
 		return $prepared;
 	}
@@ -160,7 +237,7 @@ class Gate {
 
 		// Same rule as the REST path: only a transition can be demoted.
 		$blocks = $context->is_publish_transition() ? self::messages( $results, Severity::Block ) : [];
-		$warns  = self::messages( $results, Severity::Warn );
+		$warns  = self::warnings( $results );
 
 		if ( $blocks ) {
 			$data['post_status'] = 'pending';
@@ -223,6 +300,17 @@ class Gate {
 	}
 
 	/**
+	 * Messages to show after a save. Confirm counts: the save has already
+	 * happened, so the question is past and only the warning is left.
+	 *
+	 * @param Result[] $results
+	 * @return string[]
+	 */
+	private static function warnings( array $results ): array {
+		return array_merge( self::messages( $results, Severity::Warn ), self::messages( $results, Severity::Confirm ) );
+	}
+
+	/**
 	 * Composes the author-facing message from unmet-requirement fragments.
 	 *
 	 * @param string[] $fragments
@@ -230,21 +318,27 @@ class Gate {
 	public static function format_message( array $fragments, Severity $severity = Severity::Block ): string {
 		$list = implode( '; ', $fragments );
 
-		return Severity::Block === $severity
-			? sprintf(
+		return match ( $severity ) {
+			Severity::Block   => sprintf(
 				/* translators: %s: list of unmet publish requirements. */
 				__( 'Before publishing this post, please %s.', 'mai-publish-requirements' ),
 				$list
-			)
+			),
+			Severity::Confirm => sprintf(
+				/* translators: %s: list of things to reconsider before publishing. */
+				__( 'You may want to %s. Publish anyway?', 'mai-publish-requirements' ),
+				$list
+			),
 			// Deliberately does NOT claim the post was published. A warning and a
 			// block can both come from one save, and on that save the post was
 			// demoted to Pending, so "this post was published, but..." would be
 			// telling the author the opposite of what happened.
-			: sprintf(
+			Severity::Warn    => sprintf(
 				/* translators: %s: list of publish warnings. */
 				__( 'You may also want to %s.', 'mai-publish-requirements' ),
 				$list
-			);
+			),
+		};
 	}
 
 	/**
@@ -324,5 +418,15 @@ class Gate {
 			MAI_PUBLISH_REQUIREMENTS_VERSION,
 			true
 		);
+
+		wp_enqueue_script(
+			'mai-publish-requirements-confirm',
+			plugins_url( 'assets/js/editor-confirm.js', MAI_PUBLISH_REQUIREMENTS_FILE ),
+			[ 'wp-api-fetch', 'wp-components', 'wp-data', 'wp-editor', 'wp-element', 'wp-hooks', 'wp-i18n' ],
+			MAI_PUBLISH_REQUIREMENTS_VERSION,
+			true
+		);
+
+		wp_set_script_translations( 'mai-publish-requirements-confirm', 'mai-publish-requirements' );
 	}
 }

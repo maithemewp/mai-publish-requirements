@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**New severity: Confirm.** In the block editor, a Confirm result asks "Publish anyway?" before the post goes live, using core's `ConfirmDialog`. **Publish anyway** carries on with the save. **Cancel** stops it, puts the post's status back so Save draft returns, and core shows "Publishing failed. You chose not to publish yet." It asks only on the publish transition. Updates to a live post, Quick Edit, bulk edit, the classic editor and the REST API treat Confirm exactly like Warn. The editor learns what to ask from a new route, `POST /mai-publish-requirements/v1/check`, which evaluates the unsaved post for anyone who can edit it and saves nothing. If that request fails, the post publishes and the after-save warning still shows.
+
+**Block editor warnings are full sentences.** The `mai_publish_warnings` REST field carried the bare rule fragments, so the editor's notice read "use fewer embeds (30 in this post)", lowercase, with no sentence around it. It now carries the same "You may also want to …" sentence as the admin notice.
+
 ## 0.2.0
 
 **Breaking. Nothing is registered by default.** A site now opts into every rule through `mai_publish_requirements_rules` and chooses its severity there. A site relying on the featured-image rule being on gets no enforcement until it adds that filter.

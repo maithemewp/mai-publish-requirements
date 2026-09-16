@@ -6,16 +6,27 @@ Rules that run when a post is published, each deciding for itself whether to sto
 
 The plugin is the plumbing. It ships no active rules: a site registers the ones it wants, in code, and chooses how hard each one bites.
 
-A rule returns one of two severities.
+A rule returns one of three severities.
 
 - **Block** refuses the publish. In the block editor the save is aborted with an inline error. On Quick Edit, bulk edit and the classic editor, which cannot surface one, the post is kept as **Pending** and the reason appears as an admin notice.
 - **Warn** lets the post through and says something. In the block editor it arrives as a warning notice after the save. Elsewhere it is an admin notice.
+- **Confirm** asks first. In the block editor, the author sees a "Publish anyway?" dialog before the post goes live, with **Publish anyway** and **Cancel**. Cancel keeps the post as it was and shows "Publishing failed. You chose not to publish yet." Everywhere that cannot ask, it behaves exactly like Warn: Quick Edit, bulk edit, the classic editor, the REST API, and any update to a post that is already live.
 
 **Blocks run only on the publish transition**, a post moving into `publish` or `future` from a non-live status. Editing a post that is already live is never blocked or unpublished, because refusing an update would take down a post over a rule it may have been failing for months.
 
 **Warnings run on any save that leaves the post live**, including updates. That is when they earn their keep: a post grows past a size limit or loses its excerpt long after it was first published, and the publish transition has been and gone.
 
-Neither runs on a draft.
+**Confirm asks only on the publish transition**, and warns after any save that leaves the post live.
+
+None of them runs on a draft.
+
+### How Confirm asks
+
+The block editor waits on core's `editor.preSavePost` filter before it sends a save. The plugin's script hooks that filter, sends the unsaved title, content, excerpt, featured image and terms to `POST /mai-publish-requirements/v1/check`, and shows core's `ConfirmDialog` when the answer carries a message. Nothing is saved until the author answers, and the real save still runs every rule.
+
+With **pre-publish checks** on, the first Publish click only opens that sidebar and saves nothing, so the dialog appears on the sidebar's Publish button. That is three clicks for a post that needs confirming: Publish, Publish, Publish anyway.
+
+It fails open. If the check request fails, the post publishes and the after-save warning still appears.
 
 ## Registering rules
 

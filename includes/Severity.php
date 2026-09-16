@@ -21,4 +21,12 @@ enum Severity: string {
 
 	/** Refuse the publish. */
 	case Block = 'block';
+
+	/**
+	 * Ask first. In the block editor, the author is asked "Publish anyway?"
+	 * before a post goes live, and can go ahead or stop. Everywhere that cannot
+	 * ask (Quick Edit, the classic editor, the REST API, updates to a live post)
+	 * it behaves exactly like Warn.
+	 */
+	case Confirm = 'confirm';
 }
