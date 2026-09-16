@@ -334,8 +334,8 @@ class Gate {
 			// demoted to Pending, so "this post was published, but..." would be
 			// telling the author the opposite of what happened.
 			Severity::Warn    => sprintf(
-				/* translators: %s: list of publish warnings. */
-				__( 'You may also want to %s.', 'mai-publish-requirements' ),
+				/* translators: %s: list of publish warnings. Same wording as Confirm, less the question, so a warning after the save reads as the dialog did. */
+				__( 'We recommend you %s.', 'mai-publish-requirements' ),
 				$list
 			),
 		};

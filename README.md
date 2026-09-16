@@ -82,6 +82,7 @@ $rules[] = new TermCount( taxonomy: 'series', min: 2 );
 | `Excerpt` | Warn | `Severity` |
 | `TitleLength` | Warn | `Severity`, `$characters` |
 | `ImageAltText` | Warn | `Severity` |
+| `EmbedCount` | Warn | `Severity`, `$max` (default 25) |
 
 Most warn by default. A rule that blocks is saying the post is broken; a rule that warns is saying it could be better, which is the more common case.
 

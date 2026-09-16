@@ -4,7 +4,11 @@
 
 **New severity: Confirm.** In the block editor, a Confirm result asks "Publish anyway?" before the post goes live, using core's `ConfirmDialog`. **Publish anyway** carries on with the save. **Cancel** stops it, puts the post's status back so Save draft returns, and core shows "Publishing failed. You chose not to publish yet." It asks only on the publish transition. Updates to a live post, Quick Edit, bulk edit, the classic editor and the REST API treat Confirm exactly like Warn. The editor learns what to ask from a new route, `POST /mai-publish-requirements/v1/check`, which evaluates the unsaved post for anyone who can edit it and saves nothing. If that request fails, the post publishes and the after-save warning still shows.
 
-**Block editor warnings are full sentences.** The `mai_publish_warnings` REST field carried the bare rule fragments, so the editor's notice read "use fewer embeds (30 in this post)", lowercase, with no sentence around it. It now carries the same "You may also want to …" sentence as the admin notice.
+**Block editor warnings are full sentences.** The `mai_publish_warnings` REST field carried the bare rule fragments, so the editor's notice read "use fewer embeds (30 in this post)", lowercase, with no sentence around it. It now carries the same sentence as the admin notice.
+
+**Warnings read "We recommend you …"** instead of "You may also want to …". That matches the Confirm dialog word for word, less its closing "Publish anyway?", so the warning after a save reads the way the question before it did.
+
+**New rule: `EmbedCount`.** A ceiling on embeds, 25 by default, warning by default. It counts Embed blocks of any provider, iframes (YouTube, Vimeo and Spotify embed code), pasted social embed code (Bluesky, Twitter/X, Instagram, TikTok, Threads), `[embed]` shortcodes, and, in classic content, a link alone on its line that a registered oEmbed provider claims. Plain blockquotes and ordinary links are not embeds. An Embed block's own URL is not counted twice.
 
 ## 0.2.0
 

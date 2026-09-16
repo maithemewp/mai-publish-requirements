@@ -5,6 +5,7 @@ declare( strict_types=1 );
 use Mai\PublishRequirements\Context;
 use Mai\PublishRequirements\Result;
 use Mai\PublishRequirements\Rules\Excerpt;
+use Mai\PublishRequirements\Rules\EmbedCount;
 use Mai\PublishRequirements\Rules\ImageAltText;
 use Mai\PublishRequirements\Rules\ContentLength;
 use Mai\PublishRequirements\Rules\TermCount;
@@ -17,6 +18,7 @@ use Mai\PublishRequirements\Severity;
  * @covers \Mai\PublishRequirements\Rules\Excerpt
  * @covers \Mai\PublishRequirements\Rules\TitleLength
  * @covers \Mai\PublishRequirements\Rules\ImageAltText
+ * @covers \Mai\PublishRequirements\Rules\EmbedCount
  */
 class Test_Shipped_Rules extends WP_UnitTestCase {
 
@@ -241,5 +243,75 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 		$result = ( new ImageAltText() )->check( $this->rest_context( [], $content ) );
 
 		$this->assertStringContainsString( '2', $result->message );
+	}
+
+	// --- EmbedCount ----------------------------------------------------------
+
+	public function test_embed_count_counts_every_kind_once(): void {
+		$content = implode( "\n", [
+			// Embed block: counted once, its URL inside is not counted again.
+			'<!-- wp:embed {"url":"https://www.youtube.com/watch?v=abc","providerNameSlug":"youtube"} -->',
+			'<figure class="wp-block-embed"><div class="wp-block-embed__wrapper">',
+			'https://www.youtube.com/watch?v=abc',
+			'</div></figure>',
+			'<!-- /wp:embed -->',
+			// Pasted embed codes inside a Custom HTML block.
+			'<!-- wp:html -->',
+			'<iframe src="https://player.vimeo.com/video/1"></iframe>',
+			'<iframe src="https://open.spotify.com/embed/track/1"></iframe>',
+			'<blockquote class="bluesky-embed" data-bluesky-uri="at://did:plc:x/app.bsky.feed.post/1"><p>b</p></blockquote>',
+			'<blockquote class="twitter-tweet"><p>t</p></blockquote>',
+			'<blockquote class="instagram-media" data-instgrm-permalink="x"></blockquote>',
+			'<blockquote class="tiktok-embed" cite="x"></blockquote>',
+			'<!-- /wp:html -->',
+		] );
+
+		$this->assertSame( 7, ( new EmbedCount() )->count_embeds( $content ) );
+	}
+
+	public function test_embed_count_counts_auto_embedded_links_in_classic_content(): void {
+		$classic = "Some words.\n\nhttps://www.youtube.com/watch?v=abc\n\nhttps://bsky.app/profile/x.bsky.social/post/1\n\n[embed]https://vimeo.com/1[/embed]";
+
+		$this->assertSame( 3, ( new EmbedCount() )->count_embeds( $classic ) );
+	}
+
+	public function test_embed_count_ignores_links_no_provider_claims(): void {
+		$this->assertSame( 0, ( new EmbedCount() )->count_embeds( "Read this:\n\nhttps://example.com/story\n" ) );
+	}
+
+	public function test_embed_count_ignores_a_link_inside_a_sentence(): void {
+		$this->assertSame( 0, ( new EmbedCount() )->count_embeds( 'Watch https://www.youtube.com/watch?v=abc today.' ) );
+	}
+
+	public function test_embed_count_ignores_a_bare_link_in_a_paragraph_block(): void {
+		$content = "<!-- wp:paragraph -->\n<p>\nhttps://www.youtube.com/watch?v=abc\n</p>\n<!-- /wp:paragraph -->";
+
+		$this->assertSame( 0, ( new EmbedCount() )->count_embeds( $content ) );
+	}
+
+	public function test_embed_count_ignores_plain_quotes(): void {
+		$quotes = str_repeat( '<blockquote><p>Someone said a thing.</p></blockquote>', 40 );
+
+		$this->assertNull( ( new EmbedCount( max: 1 ) )->check( $this->rest_context( [], $quotes ) ) );
+	}
+
+	public function test_embed_count_counts_embeds_inside_nested_blocks(): void {
+		$content = '<!-- wp:group --><div class="wp-block-group"><!-- wp:html --><iframe src="https://x"></iframe><!-- /wp:html --><!-- wp:embed {"url":"https://vimeo.com/1"} --><figure></figure><!-- /wp:embed --></div><!-- /wp:group -->';
+
+		$this->assertSame( 2, ( new EmbedCount() )->count_embeds( $content ) );
+	}
+
+	public function test_embed_count_allows_up_to_the_max(): void {
+		$content = str_repeat( "<iframe src=\"https://x\"></iframe>\n", 25 );
+
+		$this->assertNull( ( new EmbedCount() )->check( $this->rest_context( [], $content ) ) );
+	}
+
+	public function test_embed_count_reports_over_the_max_with_its_severity(): void {
+		$content = str_repeat( "<iframe src=\"https://x\"></iframe>\n", 26 );
+		$result  = ( new EmbedCount( Severity::Confirm ) )->check( $this->rest_context( [], $content ) );
+
+		$this->assertSame( Severity::Confirm, $result->severity );
+		$this->assertSame( 'use fewer embeds (26 in this post)', $result->message );
 	}
 }

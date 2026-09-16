@@ -195,7 +195,7 @@ class Test_Confirm extends WP_UnitTestCase {
 
 		( new Gate() )->guard_rest( (object) [ 'ID' => 0, 'post_type' => 'post', 'post_content' => 'LONG' ], $request );
 
-		$this->assertStringStartsWith( 'You may also want to', Gate::rest_warnings()[0] );
+		$this->assertStringStartsWith( 'We recommend you', Gate::rest_warnings()[0] );
 	}
 }
 
