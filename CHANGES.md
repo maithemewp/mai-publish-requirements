@@ -8,7 +8,7 @@
 
 **Warnings read "We recommend you …"** instead of "You may also want to …". That matches the Confirm dialog word for word, less its closing "Publish anyway?", so the warning after a save reads the way the question before it did.
 
-**New rule: `EmbedCount`.** A ceiling on embeds, 25 by default, warning by default. It counts Embed blocks of any provider, iframes (YouTube, Vimeo and Spotify embed code), pasted social embed code (Bluesky, Twitter/X, Instagram, TikTok, Threads), `[embed]` shortcodes, and, in classic content, a link alone on its line that a registered oEmbed provider claims. Plain blockquotes and ordinary links are not embeds. An Embed block's own URL is not counted twice.
+**New rule: `EmbedCount`.** A ceiling on embeds, 12 by default, warning by default. It counts Embed blocks of any provider, iframes (YouTube, Vimeo and Spotify embed code), pasted social embed code (Bluesky, Twitter/X, Instagram, TikTok, Threads), `[embed]` shortcodes, and, in classic content, a link alone on its line that a registered oEmbed provider claims. Plain blockquotes and ordinary links are not embeds. An Embed block's own URL is not counted twice.
 
 ## 0.2.0
 

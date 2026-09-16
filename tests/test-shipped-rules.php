@@ -302,16 +302,22 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 	}
 
 	public function test_embed_count_allows_up_to_the_max(): void {
-		$content = str_repeat( "<iframe src=\"https://x\"></iframe>\n", 25 );
+		$content = str_repeat( "<iframe src=\"https://x\"></iframe>\n", 12 );
 
 		$this->assertNull( ( new EmbedCount() )->check( $this->rest_context( [], $content ) ) );
 	}
 
 	public function test_embed_count_reports_over_the_max_with_its_severity(): void {
-		$content = str_repeat( "<iframe src=\"https://x\"></iframe>\n", 26 );
+		$content = str_repeat( "<iframe src=\"https://x\"></iframe>\n", 13 );
 		$result  = ( new EmbedCount( Severity::Confirm ) )->check( $this->rest_context( [], $content ) );
 
 		$this->assertSame( Severity::Confirm, $result->severity );
-		$this->assertSame( 'use fewer embeds (26 in this post)', $result->message );
+		$this->assertSame( 'use fewer embeds (13 in this post)', $result->message );
+	}
+
+	public function test_embed_count_takes_a_site_max(): void {
+		$content = str_repeat( "<iframe src=\"https://x\"></iframe>\n", 25 );
+
+		$this->assertNull( ( new EmbedCount( max: 25 ) )->check( $this->rest_context( [], $content ) ) );
 	}
 }

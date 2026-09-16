@@ -44,7 +44,7 @@ class EmbedCount extends Rule {
 
 	public function __construct(
 		protected readonly Severity $severity = Severity::Warn,
-		protected readonly int $max = 25,
+		protected readonly int $max = 12,
 	) {}
 
 	public function id(): string {
