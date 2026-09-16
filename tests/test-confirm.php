@@ -180,7 +180,7 @@ class Test_Confirm extends WP_UnitTestCase {
 
 	public function test_confirm_copy_asks_the_question(): void {
 		$this->assertSame(
-			'You may want to shorten this post. Publish anyway?',
+			'We recommend you shorten this post. Publish anyway?',
 			Gate::format_message( [ 'shorten this post' ], Severity::Confirm )
 		);
 	}

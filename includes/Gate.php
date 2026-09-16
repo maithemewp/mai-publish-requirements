@@ -326,7 +326,7 @@ class Gate {
 			),
 			Severity::Confirm => sprintf(
 				/* translators: %s: list of things to reconsider before publishing. */
-				__( 'You may want to %s. Publish anyway?', 'mai-publish-requirements' ),
+				__( 'We recommend you %s. Publish anyway?', 'mai-publish-requirements' ),
 				$list
 			),
 			// Deliberately does NOT claim the post was published. A warning and a
