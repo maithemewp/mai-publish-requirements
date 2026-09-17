@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+**A rule can say why it matters.** A `Result` may carry a `detail` sentence, shown between the recommendation and "Publish anyway?", and after the recommendation in the warning notice. Authors who meet the same warning often read a bare recommendation as an opinion. `EmbedCount` takes its reason as a `detail` argument, because what an embed costs depends on the site: one that defers its embeds until a reader asks has a different story from one that loads every player on sight. Two rules that give the same reason say it once.
+
 **New severity: Confirm.** In the block editor, a Confirm result asks "Publish anyway?" before the post goes live, using core's `ConfirmDialog`. **Publish anyway** carries on with the save. **Cancel** stops it, puts the post's status back so Save draft returns, and core shows "Publishing failed. You chose not to publish yet." It asks only on the publish transition. Updates to a live post, Quick Edit, bulk edit, the classic editor and the REST API treat Confirm exactly like Warn. The editor learns what to ask from a new route, `POST /mai-publish-requirements/v1/check`, which evaluates the unsaved post for anyone who can edit it and saves nothing. If that request fails, the post publishes and the after-save warning still shows.
 
 **Block editor warnings are full sentences.** The `mai_publish_warnings` REST field carried the bare rule fragments, so the editor's notice read "use fewer embeds (30 in this post)", lowercase, with no sentence around it. It now carries the same sentence as the admin notice.

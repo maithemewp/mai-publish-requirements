@@ -173,7 +173,30 @@ class Test_Confirm extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( 'publish', $data['post_status'] );
-		$this->assertSame( [ 'shorten this post' ], get_transient( 'mai_publish_requirements_warn_' . get_current_user_id() ) );
+		$this->assertSame(
+			[ 'fragments' => [ 'shorten this post' ], 'details' => [] ],
+			get_transient( 'mai_publish_requirements_warn_' . get_current_user_id() )
+		);
+	}
+
+	public function test_a_rule_reason_reaches_the_author(): void {
+		// A reason sits between the recommendation and the question, and the same
+		// sentence follows the warning after a save.
+		$this->assertSame(
+			'We recommend you use fewer embeds. Each one costs the reader. Publish anyway?',
+			Gate::format_message( [ 'use fewer embeds' ], Severity::Confirm, [ 'Each one costs the reader.' ] )
+		);
+		$this->assertSame(
+			'We recommend you use fewer embeds. Each one costs the reader.',
+			Gate::format_message( [ 'use fewer embeds' ], Severity::Warn, [ 'Each one costs the reader.' ] )
+		);
+	}
+
+	public function test_two_rules_sharing_a_reason_say_it_once(): void {
+		$this->assertSame(
+			'We recommend you A; B. Why it matters. Publish anyway?',
+			Gate::format_message( [ 'A', 'B' ], Severity::Confirm, [ 'Why it matters.', 'Why it matters.' ] )
+		);
 	}
 
 	// --- copy -----------------------------------------------------------------

@@ -269,6 +269,19 @@ class Test_Shipped_Rules extends WP_UnitTestCase {
 		$this->assertSame( 7, ( new EmbedCount() )->count_embeds( $content ) );
 	}
 
+	public function test_embed_count_carries_the_site_s_own_reason(): void {
+		// The recommendation alone reads as an opinion to an author who meets it
+		// often. What an embed costs differs per site, so the site supplies the
+		// reason and the rule carries it.
+		$content = str_repeat( '<!-- wp:embed {"url":"https://x.test/1"} --><!-- /wp:embed -->', 3 );
+		$plain   = ( new EmbedCount( max: 2 ) )->check( $this->rest_context( [], $content ) );
+		$spoken  = ( new EmbedCount( max: 2, detail: 'Each one loads another site.' ) )->check( $this->rest_context( [], $content ) );
+
+		$this->assertSame( 'use fewer embeds (3 in this post)', $plain->message );
+		$this->assertSame( '', $plain->detail );
+		$this->assertSame( 'Each one loads another site.', $spoken->detail );
+	}
+
 	public function test_embed_count_counts_auto_embedded_links_in_classic_content(): void {
 		$classic = "Some words.\n\nhttps://www.youtube.com/watch?v=abc\n\nhttps://bsky.app/profile/x.bsky.social/post/1\n\n[embed]https://vimeo.com/1[/embed]";
 

@@ -42,9 +42,20 @@ class EmbedCount extends Rule {
 		'/<blockquote\b[^>]*\bclass\s*=\s*["\'][^"\']*\b(?:twitter-tweet|instagram-media|tiktok-embed|text-post-media)\b/i',
 	];
 
+	/**
+	 * @param Severity $severity How hard to push back.
+	 * @param int      $max      Embeds allowed before the rule fires.
+	 * @param string   $detail   Why it matters, in the site's own words, shown
+	 *                           after the recommendation. Sites differ in what
+	 *                           an embed costs them: one that defers its embeds
+	 *                           until a reader asks has a different story from
+	 *                           one that loads every player on sight. Empty
+	 *                           gives the recommendation on its own.
+	 */
 	public function __construct(
 		protected readonly Severity $severity = Severity::Warn,
 		protected readonly int $max = 12,
+		protected readonly string $detail = '',
 	) {}
 
 	public function id(): string {
@@ -64,7 +75,8 @@ class EmbedCount extends Rule {
 				/* translators: %d: how many embeds the post has. */
 				__( 'use fewer embeds (%d in this post)', 'mai-publish-requirements' ),
 				$count
-			)
+			),
+			$this->detail
 		);
 	}
 

@@ -39,9 +39,9 @@ class Gate {
 	 * filter are two points in one request, so nothing needs to outlive it, and
 	 * a transient would leak a warning onto somebody else's next save.
 	 *
-	 * @var string[]
+	 * @var array{fragments: string[], details: string[]}
 	 */
-	private static array $pending_warnings = [];
+	private static array $pending_warnings = [ 'fragments' => [], 'details' => [] ];
 
 	/**
 	 * Wires the REST gate, the non-REST backstop, and the admin notice.
@@ -91,7 +91,9 @@ class Gate {
 	 * @return string[]
 	 */
 	public static function rest_warnings(): array {
-		return self::$pending_warnings ? [ self::format_message( self::$pending_warnings, Severity::Warn ) ] : [];
+		return self::$pending_warnings['fragments']
+			? [ self::format_message( self::$pending_warnings['fragments'], Severity::Warn, self::$pending_warnings['details'] ) ]
+			: [];
 	}
 
 	/**
@@ -144,12 +146,14 @@ class Gate {
 			}
 		}
 
-		$context  = Context::from_rest( $prepared, $request );
-		$confirms = $context->is_publish_transition() && in_array( $context->post_type, Rules::gated_post_types(), true )
-			? self::messages( $this->evaluate( $context ), Severity::Confirm )
-			: [];
+		$context = Context::from_rest( $prepared, $request );
 
-		return new \WP_REST_Response( [ 'message' => $confirms ? self::format_message( $confirms, Severity::Confirm ) : '' ] );
+		$results  = $context->is_publish_transition() && in_array( $context->post_type, Rules::gated_post_types(), true ) ? $this->evaluate( $context ) : [];
+		$confirms = self::messages( $results, Severity::Confirm );
+
+		return new \WP_REST_Response( [
+			'message' => $confirms ? self::format_message( $confirms, Severity::Confirm, self::details( $results, Severity::Confirm ) ) : '',
+		] );
 	}
 
 	/**
@@ -247,8 +251,8 @@ class Gate {
 		// A warning never changes post_status. It is the same admin notice,
 		// styled as a warning, and it is worth showing even when a block already
 		// demoted the post: the two are different problems.
-		if ( $warns ) {
-			$this->flag_notice( $warns, Severity::Warn );
+		if ( $warns['fragments'] ) {
+			$this->flag_notice( $warns['fragments'], Severity::Warn, $warns['details'] );
 		}
 
 		return $data;
@@ -300,6 +304,25 @@ class Gate {
 	}
 
 	/**
+	 * The reasons from results of one severity, in the order the rules ran, with
+	 * duplicates dropped: two rules that share a reason say it once.
+	 *
+	 * @param Result[] $results
+	 * @return string[]
+	 */
+	private static function details( array $results, Severity $severity ): array {
+		$details = [];
+
+		foreach ( $results as $result ) {
+			if ( $severity === $result->severity && '' !== $result->detail ) {
+				$details[] = $result->detail;
+			}
+		}
+
+		return array_values( array_unique( $details ) );
+	}
+
+	/**
 	 * Messages to show after a save. Confirm counts: the save has already
 	 * happened, so the question is past and only the warning is left.
 	 *
@@ -307,7 +330,10 @@ class Gate {
 	 * @return string[]
 	 */
 	private static function warnings( array $results ): array {
-		return array_merge( self::messages( $results, Severity::Warn ), self::messages( $results, Severity::Confirm ) );
+		return [
+			'fragments' => array_merge( self::messages( $results, Severity::Warn ), self::messages( $results, Severity::Confirm ) ),
+			'details'   => array_merge( self::details( $results, Severity::Warn ), self::details( $results, Severity::Confirm ) ),
+		];
 	}
 
 	/**
@@ -315,8 +341,12 @@ class Gate {
 	 *
 	 * @param string[] $fragments
 	 */
-	public static function format_message( array $fragments, Severity $severity = Severity::Block ): string {
+	public static function format_message( array $fragments, Severity $severity = Severity::Block, array $details = [] ): string {
 		$list = implode( '; ', $fragments );
+		// Deduped here as well as where they are gathered, so any caller composing
+		// a message gets one copy of a reason two rules share.
+		$reasons = array_values( array_unique( array_filter( $details ) ) );
+		$why     = $reasons ? ' ' . implode( ' ', $reasons ) : '';
 
 		return match ( $severity ) {
 			Severity::Block   => sprintf(
@@ -324,19 +354,23 @@ class Gate {
 				__( 'Before publishing this post, please %s.', 'mai-publish-requirements' ),
 				$list
 			),
+			// The reason sits between the recommendation and the question, so the
+			// author reads what it costs before deciding.
 			Severity::Confirm => sprintf(
-				/* translators: %s: list of things to reconsider before publishing. */
-				__( 'We recommend you %s. Publish anyway?', 'mai-publish-requirements' ),
-				$list
+				/* translators: 1: list of things to reconsider before publishing. 2: why they matter, or an empty string. */
+				__( 'We recommend you %1$s.%2$s Publish anyway?', 'mai-publish-requirements' ),
+				$list,
+				$why
 			),
 			// Deliberately does NOT claim the post was published. A warning and a
 			// block can both come from one save, and on that save the post was
 			// demoted to Pending, so "this post was published, but..." would be
 			// telling the author the opposite of what happened.
 			Severity::Warn    => sprintf(
-				/* translators: %s: list of publish warnings. Same wording as Confirm, less the question, so a warning after the save reads as the dialog did. */
-				__( 'We recommend you %s.', 'mai-publish-requirements' ),
-				$list
+				/* translators: 1: list of publish warnings. 2: why they matter, or an empty string. Same wording as Confirm, less the question, so a warning after the save reads as the dialog did. */
+				__( 'We recommend you %1$s.%2$s', 'mai-publish-requirements' ),
+				$list,
+				$why
 			),
 		};
 	}
@@ -349,15 +383,24 @@ class Gate {
 	 * that claims the post was demoted for both reasons.
 	 *
 	 * @param string[] $fragments
+	 * @param string[] $details   Why they matter, shown after the recommendation.
 	 */
-	private function flag_notice( array $fragments, Severity $severity ): void {
-		$key      = self::NOTICE_TRANSIENT . $severity->value . '_' . get_current_user_id();
-		$stored   = get_transient( $key );
-		$existing = is_array( $stored ) ? $stored : [];
+	private function flag_notice( array $fragments, Severity $severity, array $details = [] ): void {
+		$key    = self::NOTICE_TRANSIENT . $severity->value . '_' . get_current_user_id();
+		$stored = get_transient( $key );
+		// An older transient holds a plain list of fragments; read it as one.
+		$existing = is_array( $stored ) && isset( $stored['fragments'] ) ? $stored : [ 'fragments' => is_array( $stored ) ? $stored : [], 'details' => [] ];
 
-		$fragments = array_filter( array_map( 'trim', array_merge( $existing, $fragments ) ) );
+		$merge = static fn ( array $a, array $b ): array => array_values( array_unique( array_filter( array_map( 'trim', array_merge( $a, $b ) ) ) ) );
 
-		set_transient( $key, array_values( array_unique( $fragments ) ), MINUTE_IN_SECONDS );
+		set_transient(
+			$key,
+			[
+				'fragments' => $merge( (array) $existing['fragments'], $fragments ),
+				'details'   => $merge( (array) ( $existing['details'] ?? [] ), $details ),
+			],
+			MINUTE_IN_SECONDS
+		);
 	}
 
 	/**
@@ -370,7 +413,10 @@ class Gate {
 			// (array) handles both false → [] and a stray '' → [''] (a persistent
 			// object cache can return '' for a missing key); array_filter drops the
 			// empties. No real reasons → nothing to show.
-			$fragments = array_filter( array_map( 'trim', (array) get_transient( $key ) ) );
+			$stored    = get_transient( $key );
+			$stored    = is_array( $stored ) && isset( $stored['fragments'] ) ? $stored : [ 'fragments' => is_array( $stored ) ? $stored : [], 'details' => [] ];
+			$fragments = array_filter( array_map( 'trim', (array) $stored['fragments'] ) );
+			$details   = array_filter( array_map( 'trim', (array) ( $stored['details'] ?? [] ) ) );
 
 			if ( ! $fragments ) {
 				continue;
@@ -391,7 +437,7 @@ class Gate {
 						? __( 'A post was kept as Pending.', 'mai-publish-requirements' )
 						: __( 'Publish warnings.', 'mai-publish-requirements' )
 				),
-				esc_html( self::format_message( $fragments, $severity ) )
+				esc_html( self::format_message( $fragments, $severity, $details ) )
 			);
 		}
 	}
